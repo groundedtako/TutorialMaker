@@ -13,6 +13,7 @@ from .events import EventMonitor, MouseClickEvent, KeyPressEvent, EventType
 from .ocr import OCREngine, OCRResult
 from .storage import TutorialStorage, TutorialStep, TutorialMetadata
 from .exporters import TutorialExporter
+from ..web.server import TutorialWebServer
 
 class RecordingSession:
     """Manages a single recording session"""
@@ -87,6 +88,8 @@ class TutorialMakerApp:
         self.ocr_engine = OCREngine()
         self.storage = TutorialStorage()
         self.exporter = TutorialExporter(self.storage)
+        self.web_server = TutorialWebServer(self.storage)
+        self.web_server.set_app_instance(self)  # Allow web server to access session status
         self.debug_mode = debug_mode
         
         # Current session
@@ -134,8 +137,12 @@ class TutorialMakerApp:
         # Create new tutorial project
         tutorial_id = self.storage.create_tutorial_project(title, description)
         
+        # Get the actual title that was saved (in case it was auto-generated)
+        metadata = self.storage.load_tutorial_metadata(tutorial_id)
+        actual_title = metadata.title if metadata else (title or f"Tutorial {tutorial_id[:8]}")
+        
         # Create new session
-        self.current_session = RecordingSession(tutorial_id, title or f"Tutorial {tutorial_id[:8]}")
+        self.current_session = RecordingSession(tutorial_id, actual_title)
         
         print(f"New tutorial created: {self.current_session.title}")
         return tutorial_id
@@ -178,7 +185,7 @@ class TutorialMakerApp:
     
     def stop_recording(self) -> Optional[str]:
         """
-        Stop recording and finalize the tutorial
+        Stop recording, finalize the tutorial, and automatically export
         
         Returns:
             Tutorial ID if successful, None otherwise
@@ -187,6 +194,7 @@ class TutorialMakerApp:
             return None
         
         tutorial_id = self.current_session.tutorial_id
+        tutorial_title = self.current_session.title
         
         # Stop session
         self.current_session.stop()
@@ -207,12 +215,38 @@ class TutorialMakerApp:
             if project_path:
                 self.storage._save_metadata(project_path, metadata)
         
-        print(f"Tutorial completed: {self.current_session.title}")
-        print(f"Duration: {self.current_session.get_duration():.1f} seconds")
-        print(f"Steps captured: {self.current_session.step_counter}")
+        # Store final stats before clearing session
+        final_step_count = self.current_session.step_counter
+        final_duration = self.current_session.get_duration()
         
-        # Clear current session
+        print(f"Tutorial completed: {tutorial_title}")
+        print(f"Duration: {final_duration:.1f} seconds")
+        print(f"Steps captured: {final_step_count}")
+        
+        # Clear current session after storing final stats
         self.current_session = None
+        
+        # Automatically export tutorial to all formats
+        print("\nExporting tutorial...")
+        try:
+            export_results = self.exporter.export_tutorial(tutorial_id, ['html', 'word', 'pdf'])
+            
+            print("✅ Tutorial exported successfully:")
+            for format_name, result_path in export_results.items():
+                if result_path and not result_path.startswith('Error:'):
+                    print(f"  • {format_name.upper()}: {result_path}")
+                else:
+                    print(f"  ⚠️  {format_name.upper()}: {result_path}")
+            
+            # Get project path for user reference
+            project_path = self.storage.get_project_path(tutorial_id)
+            if project_path:
+                print(f"\n📁 Files saved to: {project_path}")
+                print(f"🌐 View in browser: http://localhost:5000/tutorial/{tutorial_id}")
+            
+        except Exception as e:
+            print(f"⚠️  Export failed: {e}")
+            print("You can export later using the web interface.")
         
         return tutorial_id
     
@@ -403,6 +437,17 @@ class TutorialMakerApp:
         self.screen_capture.set_debug_mode(self.debug_mode)
         return self.debug_mode
     
+    def start_web_server(self) -> str:
+        """Start the web server for editing tutorials"""
+        try:
+            url = self.web_server.start(open_browser=True)
+            print(f"✅ Web server started at {url}")
+            print("You can now edit and manage your tutorials in the browser.")
+            return url
+        except Exception as e:
+            print(f"⚠️  Failed to start web server: {e}")
+            return ""
+    
     def get_current_session_status(self) -> Dict[str, Any]:
         """Get status of current recording session"""
         if not self.current_session:
@@ -431,10 +476,11 @@ class TutorialMakerApp:
         print("  start          - Start recording")
         print("  pause          - Pause recording")
         print("  resume         - Resume recording") 
-        print("  stop           - Stop recording")
+        print("  stop           - Stop recording and auto-export to HTML/Word/PDF")
         print("  list           - List tutorials")
         print("  status         - Show current status")
         print("  debug          - Toggle debug mode (shows precise click locations)")
+        print("  web            - Start web server for editing (http://localhost:5000)")
         print("  quit           - Exit application")
         
         try:
@@ -477,6 +523,8 @@ class TutorialMakerApp:
                         debug_enabled = self.toggle_debug_mode()
                         status = "enabled" if debug_enabled else "disabled"
                         print(f"Debug mode {status}")
+                    elif cmd == "web":
+                        self.start_web_server()
                     else:
                         print(f"Unknown command: {cmd}")
                         
@@ -498,6 +546,9 @@ class TutorialMakerApp:
         
         # Stop event monitoring
         self.event_monitor.stop_monitoring()
+        
+        # Stop web server
+        self.web_server.stop()
         
         # Clean up resources
         self.screen_capture.close()

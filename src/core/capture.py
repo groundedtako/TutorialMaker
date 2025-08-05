@@ -5,23 +5,55 @@ Cross-platform screen capture using mss library
 
 import time
 import platform
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, Union
 from pathlib import Path
-import mss
-from PIL import Image, ImageDraw
-import numpy as np
+try:
+    import mss
+    MSS_AVAILABLE = True
+except (ImportError, ValueError, Exception):
+    MSS_AVAILABLE = False
+    print("Warning: mss not available. Screenshot capture disabled.")
+
+try:
+    from PIL import Image, ImageDraw
+    PIL_AVAILABLE = True
+except (ImportError, ValueError, Exception):
+    PIL_AVAILABLE = False
+    # Create minimal mock classes
+    class Image:
+        @staticmethod
+        def new(*args, **kwargs):
+            return None
+        @staticmethod
+        def frombytes(*args, **kwargs):
+            return None
+    class ImageDraw:
+        @staticmethod
+        def Draw(*args, **kwargs):
+            return None
+    print("Warning: PIL not available in capture module.")
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except (ImportError, ValueError, Exception):
+    NUMPY_AVAILABLE = False
+    print("Warning: numpy not available in capture module.")
 
 class ScreenCapture:
     """Cross-platform screenshot capture manager"""
     
     def __init__(self, debug_mode: bool = False):
-        self.sct = mss.mss()
+        if MSS_AVAILABLE:
+            self.sct = mss.mss()
+        else:
+            self.sct = None
         self.system = platform.system().lower()
         self._last_screenshot = None
         self._last_screenshot_time = 0
         self.debug_mode = debug_mode
         
-    def capture_full_screen(self, monitor_id: int = 1) -> Image.Image:
+    def capture_full_screen(self, monitor_id: int = 1) -> Optional[Image.Image]:
         """
         Capture full screen screenshot
         
@@ -29,8 +61,12 @@ class ScreenCapture:
             monitor_id: Monitor number (1 for primary, 0 for all monitors)
             
         Returns:
-            PIL Image of the screenshot
+            PIL Image of the screenshot, or None if capture not available
         """
+        if not MSS_AVAILABLE or not self.sct:
+            print("Screenshot capture not available")
+            return None
+            
         try:
             # Get monitor information
             if monitor_id == 0:

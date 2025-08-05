@@ -25,6 +25,7 @@ class TutorialWebServer:
         self.storage = storage
         self.exporter = TutorialExporter(storage)
         self.port = port
+        self.app_instance = None  # Reference to main app instance for session status
         
         # Create Flask app
         self.app = Flask(__name__, 
@@ -46,7 +47,12 @@ class TutorialWebServer:
         """Set up Jinja2 template filters"""
         @self.app.template_filter('timestamp_to_date')
         def timestamp_to_date(timestamp):
-            return datetime.fromtimestamp(timestamp).strftime('%B %d, %Y at %I:%M %p')
+            try:
+                if timestamp is None or timestamp == 0:
+                    return "Unknown date"
+                return datetime.fromtimestamp(timestamp).strftime('%B %d, %Y at %I:%M %p')
+            except (ValueError, TypeError, OSError):
+                return "Invalid date"
     
     def _setup_routes(self):
         """Set up Flask routes"""
@@ -60,16 +66,46 @@ class TutorialWebServer:
         @self.app.route('/tutorial/<tutorial_id>')
         def view_tutorial(tutorial_id: str):
             """View/edit specific tutorial"""
-            metadata = self.storage.load_tutorial_metadata(tutorial_id)
-            steps = self.storage.load_tutorial_steps(tutorial_id)
-            
-            if not metadata or not steps:
-                return jsonify({'error': 'Tutorial not found'}), 404
-            
-            return render_template('tutorial.html', 
-                                 metadata=metadata, 
-                                 steps=steps,
-                                 tutorial_id=tutorial_id)
+            try:
+                metadata = self.storage.load_tutorial_metadata(tutorial_id)
+                steps = self.storage.load_tutorial_steps(tutorial_id)
+                
+                if not metadata:
+                    return render_template('tutorial_not_found.html', tutorial_id=tutorial_id), 404
+                
+                if steps is None:
+                    steps = []
+                
+                # Validate and clean step data
+                validated_steps = []
+                for i, step in enumerate(steps):
+                    try:
+                        # Check if step has required attributes
+                        if not hasattr(step, 'step_id'):
+                            print(f"Warning: Step {i} missing step_id")
+                            continue
+                        if not hasattr(step, 'description'):
+                            print(f"Warning: Step {i} missing description")
+                            continue
+                        validated_steps.append(step)
+                    except Exception as e:
+                        print(f"Warning: Skipping malformed step {i}: {e}")
+                        continue
+                
+                steps = validated_steps
+                
+                # Log successful loads for debugging
+                print(f"Successfully loaded tutorial: {metadata.title} ({len(steps)} steps)")
+                
+                return render_template('tutorial.html', 
+                                     metadata=metadata, 
+                                     steps=steps,
+                                     tutorial_id=tutorial_id)
+            except Exception as e:
+                print(f"Error in view_tutorial: {e}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({'error': f'Server error: {str(e)}'}), 500
         
         @self.app.route('/api/tutorials')
         def api_list_tutorials():
@@ -251,6 +287,94 @@ class TutorialWebServer:
                 return jsonify({'error': 'File not found'}), 404
             
             return send_file(file_path, as_attachment=True)
+        
+        @self.app.route('/api/recording/status')
+        def api_recording_status():
+            """API: Get current recording session status"""
+            if not self.app_instance:
+                return jsonify({
+                    'status': 'no_session',
+                    'message': 'No app instance connected'
+                })
+            
+            status = self.app_instance.get_current_session_status()
+            return jsonify(status)
+        
+        @self.app.route('/api/recording/new', methods=['POST'])
+        def api_new_recording():
+            """API: Create new recording session"""
+            if not self.app_instance:
+                return jsonify({'error': 'No app instance connected'}), 500
+            
+            data = request.get_json()
+            title = data.get('title', '') if data else ''
+            description = data.get('description', '') if data else ''
+            
+            try:
+                tutorial_id = self.app_instance.new_tutorial(title, description)
+                return jsonify({
+                    'success': True,
+                    'tutorial_id': tutorial_id
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/recording/start', methods=['POST'])
+        def api_start_recording():
+            """API: Start recording"""
+            if not self.app_instance:
+                return jsonify({'error': 'No app instance connected'}), 500
+            
+            try:
+                success = self.app_instance.start_recording()
+                if success:
+                    return jsonify({'success': True})
+                else:
+                    return jsonify({'error': 'Failed to start recording'}), 500
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/recording/pause', methods=['POST'])
+        def api_pause_recording():
+            """API: Pause recording"""
+            if not self.app_instance:
+                return jsonify({'error': 'No app instance connected'}), 500
+            
+            try:
+                self.app_instance.pause_recording()
+                return jsonify({'success': True})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/recording/resume', methods=['POST'])
+        def api_resume_recording():
+            """API: Resume recording"""
+            if not self.app_instance:
+                return jsonify({'error': 'No app instance connected'}), 500
+            
+            try:
+                self.app_instance.resume_recording()
+                return jsonify({'success': True})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/recording/stop', methods=['POST'])
+        def api_stop_recording():
+            """API: Stop recording"""
+            if not self.app_instance:
+                return jsonify({'error': 'No app instance connected'}), 500
+            
+            try:
+                tutorial_id = self.app_instance.stop_recording()
+                if tutorial_id:
+                    return jsonify({
+                        'success': True,
+                        'tutorial_id': tutorial_id
+                    })
+                else:
+                    return jsonify({'error': 'No active recording session'}), 400
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
     
     def start(self, open_browser: bool = True) -> str:
         """
@@ -294,3 +418,7 @@ class TutorialWebServer:
         if self.running:
             return f"http://localhost:{self.port}"
         return None
+    
+    def set_app_instance(self, app_instance):
+        """Set reference to main app instance for session status"""
+        self.app_instance = app_instance

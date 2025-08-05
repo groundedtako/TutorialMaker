@@ -17,7 +17,13 @@ flask-cors>=4.0.0        # CORS support for localhost
 python-docx>=0.8.11      # Word document export
 reportlab>=4.0.0         # PDF generation
 
+# Desktop GUI dependencies
+pystray>=0.19.4          # System tray integration
+keyboard>=0.13.5         # Global hotkeys (optional)
+
 # Utilities
 uuid>=1.30               # Session ID generation
 watchdog>=3.0.0          # File system monitoring
 typing-extensions>=4.7.0 # Type hints support
+
+# Note: tkinter is included with Python standard library

@@ -9,15 +9,15 @@ from pathlib import Path
 # Add src to path
 sys.path.append(str(Path(__file__).parent / "src"))
 
-from src.core.storage import TutorialStorage
-from src.web.server import TutorialWebServer
+from src.core.app import TutorialMakerApp
 
 def main():
-    print("Starting TutorialMaker Web Server...")
+    print("Starting TutorialMaker Web Server with full recording support...")
     
-    # Initialize storage and server
-    storage = TutorialStorage()
-    server = TutorialWebServer(storage, port=5000)
+    # Initialize full app instance (includes recording capabilities)
+    app = TutorialMakerApp(debug_mode=False)
+    server = app.web_server
+    server.port = 5001
     
     # Start server
     try:

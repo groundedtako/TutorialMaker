@@ -1,0 +1,296 @@
+"""
+Flask web server for tutorial editing interface
+Local-only server for post-capture editing and management
+"""
+
+import os
+import json
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from flask_cors import CORS
+import webbrowser
+import threading
+import time
+from datetime import datetime
+
+from ..core.storage import TutorialStorage, TutorialMetadata, TutorialStep
+from ..core.exporters import TutorialExporter
+
+class TutorialWebServer:
+    """Web server for tutorial editing and management"""
+    
+    def __init__(self, storage: TutorialStorage, port: int = 5000):
+        self.storage = storage
+        self.exporter = TutorialExporter(storage)
+        self.port = port
+        
+        # Create Flask app
+        self.app = Flask(__name__, 
+                        template_folder=str(Path(__file__).parent / "templates"),
+                        static_folder=str(Path(__file__).parent / "static"))
+        CORS(self.app)  # Enable CORS for localhost development
+        
+        # Set up template filters
+        self._setup_template_filters()
+        
+        # Set up routes
+        self._setup_routes()
+        
+        # Server state
+        self.server_thread = None
+        self.running = False
+    
+    def _setup_template_filters(self):
+        """Set up Jinja2 template filters"""
+        @self.app.template_filter('timestamp_to_date')
+        def timestamp_to_date(timestamp):
+            return datetime.fromtimestamp(timestamp).strftime('%B %d, %Y at %I:%M %p')
+    
+    def _setup_routes(self):
+        """Set up Flask routes"""
+        
+        @self.app.route('/')
+        def index():
+            """Main page - list all tutorials"""
+            tutorials = self.storage.list_tutorials()
+            return render_template('index.html', tutorials=tutorials)
+        
+        @self.app.route('/tutorial/<tutorial_id>')
+        def view_tutorial(tutorial_id: str):
+            """View/edit specific tutorial"""
+            metadata = self.storage.load_tutorial_metadata(tutorial_id)
+            steps = self.storage.load_tutorial_steps(tutorial_id)
+            
+            if not metadata or not steps:
+                return jsonify({'error': 'Tutorial not found'}), 404
+            
+            return render_template('tutorial.html', 
+                                 metadata=metadata, 
+                                 steps=steps,
+                                 tutorial_id=tutorial_id)
+        
+        @self.app.route('/api/tutorials')
+        def api_list_tutorials():
+            """API: List all tutorials"""
+            tutorials = self.storage.list_tutorials()
+            return jsonify([{
+                'tutorial_id': t.tutorial_id,
+                'title': t.title,
+                'description': t.description,
+                'created_at': t.created_at,
+                'step_count': t.step_count,
+                'duration': t.duration,
+                'status': t.status
+            } for t in tutorials])
+        
+        @self.app.route('/api/tutorial/<tutorial_id>')
+        def api_get_tutorial(tutorial_id: str):
+            """API: Get tutorial data"""
+            metadata = self.storage.load_tutorial_metadata(tutorial_id)
+            steps = self.storage.load_tutorial_steps(tutorial_id)
+            
+            if not metadata or steps is None:
+                return jsonify({'error': 'Tutorial not found'}), 404
+            
+            return jsonify({
+                'metadata': {
+                    'tutorial_id': metadata.tutorial_id,
+                    'title': metadata.title,
+                    'description': metadata.description,
+                    'created_at': metadata.created_at,
+                    'last_modified': metadata.last_modified,
+                    'duration': metadata.duration,
+                    'step_count': metadata.step_count,
+                    'status': metadata.status,
+                    'tags': metadata.tags
+                },
+                'steps': [{
+                    'step_id': s.step_id,
+                    'step_number': s.step_number,
+                    'description': s.description,
+                    'screenshot_path': s.screenshot_path,
+                    'coordinates': s.coordinates,
+                    'ocr_confidence': s.ocr_confidence,
+                    'step_type': s.step_type
+                } for s in steps]
+            })
+        
+        @self.app.route('/api/tutorial/<tutorial_id>/update', methods=['POST'])
+        def api_update_tutorial(tutorial_id: str):
+            """API: Update tutorial metadata and steps"""
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            # Update metadata if provided
+            if 'metadata' in data:
+                metadata = self.storage.load_tutorial_metadata(tutorial_id)
+                if not metadata:
+                    return jsonify({'error': 'Tutorial not found'}), 404
+                
+                # Update fields
+                metadata_updates = data['metadata']
+                if 'title' in metadata_updates:
+                    metadata.title = metadata_updates['title']
+                if 'description' in metadata_updates:
+                    metadata.description = metadata_updates['description']
+                if 'tags' in metadata_updates:
+                    metadata.tags = metadata_updates['tags']
+                
+                metadata.last_modified = time.time()
+                
+                # Save updated metadata
+                project_path = self.storage.get_project_path(tutorial_id)
+                if project_path:
+                    self.storage._save_metadata(project_path, metadata)
+            
+            # Update steps if provided
+            if 'steps' in data:
+                steps = self.storage.load_tutorial_steps(tutorial_id)
+                if steps is None:
+                    return jsonify({'error': 'Tutorial not found'}), 404
+                
+                steps_updates = {s['step_id']: s for s in data['steps']}
+                
+                # Update step descriptions
+                for step in steps:
+                    if step.step_id in steps_updates:
+                        update = steps_updates[step.step_id]
+                        if 'description' in update:
+                            step.description = update['description']
+                
+                # Save updated steps
+                project_path = self.storage.get_project_path(tutorial_id)
+                if project_path:
+                    self.storage._save_steps(project_path, steps)
+            
+            return jsonify({'success': True})
+        
+        @self.app.route('/api/tutorial/<tutorial_id>/delete_step', methods=['POST'])
+        def api_delete_step(tutorial_id: str):
+            """API: Delete a tutorial step"""
+            data = request.get_json()
+            step_id = data.get('step_id')
+            
+            if not step_id:
+                return jsonify({'error': 'step_id required'}), 400
+            
+            steps = self.storage.load_tutorial_steps(tutorial_id)
+            if steps is None:
+                return jsonify({'error': 'Tutorial not found'}), 404
+            
+            # Remove step
+            steps = [s for s in steps if s.step_id != step_id]
+            
+            # Renumber remaining steps
+            for i, step in enumerate(steps, 1):
+                step.step_number = i
+            
+            # Save updated steps
+            project_path = self.storage.get_project_path(tutorial_id)
+            if project_path:
+                self.storage._save_steps(project_path, steps)
+                
+                # Update metadata step count
+                metadata = self.storage.load_tutorial_metadata(tutorial_id)
+                if metadata:
+                    metadata.step_count = len(steps)
+                    metadata.last_modified = time.time()
+                    self.storage._save_metadata(project_path, metadata)
+            
+            return jsonify({'success': True, 'new_step_count': len(steps)})
+        
+        @self.app.route('/api/tutorial/<tutorial_id>/export', methods=['POST'])
+        def api_export_tutorial(tutorial_id: str):
+            """API: Export tutorial to specified formats"""
+            data = request.get_json()
+            formats = data.get('formats', ['html', 'word', 'pdf'])
+            
+            try:
+                results = self.exporter.export_tutorial(tutorial_id, formats)
+                return jsonify({
+                    'success': True,
+                    'results': results
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/tutorial/<tutorial_id>/delete', methods=['POST'])
+        def api_delete_tutorial(tutorial_id: str):
+            """API: Delete entire tutorial"""
+            success = self.storage.delete_tutorial(tutorial_id)
+            if success:
+                return jsonify({'success': True})
+            else:
+                return jsonify({'error': 'Failed to delete tutorial'}), 500
+        
+        @self.app.route('/screenshots/<tutorial_id>/<filename>')
+        def serve_screenshot(tutorial_id: str, filename: str):
+            """Serve screenshot files"""
+            project_path = self.storage.get_project_path(tutorial_id)
+            if not project_path:
+                return jsonify({'error': 'Tutorial not found'}), 404
+            
+            screenshots_dir = project_path / "screenshots"
+            return send_from_directory(screenshots_dir, filename)
+        
+        @self.app.route('/download/<tutorial_id>/<filename>')
+        def download_file(tutorial_id: str, filename: str):
+            """Download exported files"""
+            project_path = self.storage.get_project_path(tutorial_id)
+            if not project_path:
+                return jsonify({'error': 'Tutorial not found'}), 404
+            
+            output_dir = project_path / "output"
+            file_path = output_dir / filename
+            
+            if not file_path.exists():
+                return jsonify({'error': 'File not found'}), 404
+            
+            return send_file(file_path, as_attachment=True)
+    
+    def start(self, open_browser: bool = True) -> str:
+        """
+        Start the web server
+        
+        Args:
+            open_browser: Whether to open browser automatically
+            
+        Returns:
+            Server URL
+        """
+        if self.running:
+            return f"http://localhost:{self.port}"
+        
+        def run_server():
+            self.app.run(host='127.0.0.1', port=self.port, debug=False, use_reloader=False)
+        
+        self.server_thread = threading.Thread(target=run_server, daemon=True)
+        self.server_thread.start()
+        self.running = True
+        
+        # Wait a moment for server to start
+        time.sleep(1)
+        
+        url = f"http://localhost:{self.port}"
+        
+        if open_browser:
+            webbrowser.open(url)
+        
+        print(f"Tutorial web server started at {url}")
+        return url
+    
+    def stop(self):
+        """Stop the web server"""
+        self.running = False
+        # Note: Flask development server doesn't have a clean shutdown method
+        # In production, you'd use a proper WSGI server like Gunicorn
+    
+    def get_url(self) -> Optional[str]:
+        """Get server URL if running"""
+        if self.running:
+            return f"http://localhost:{self.port}"
+        return None

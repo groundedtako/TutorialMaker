@@ -222,6 +222,15 @@ class TutorialMakerApp:
             return
         
         try:
+            # Get screen dimensions at the time of click
+            screen_info = self.screen_capture.get_screen_info()
+            screen_width = screen_info['width']
+            screen_height = screen_info['height']
+            
+            # Calculate percentage coordinates
+            x_pct = event.x / screen_width
+            y_pct = event.y / screen_height
+            
             # Capture screenshot immediately
             screenshot = self.screen_capture.capture_full_screen()
             if not screenshot:
@@ -236,10 +245,10 @@ class TutorialMakerApp:
             if click_region:
                 ocr_result = self.ocr_engine.extract_text(click_region)
             
-            # Add debug marker to screenshot if in debug mode
+            # Add debug marker to screenshot if in debug mode using percentage coordinates
             if self.debug_mode:
                 screenshot = self.screen_capture.add_debug_click_marker(
-                    screenshot, event.x, event.y
+                    screenshot, x_pct=x_pct, y_pct=y_pct
                 )
             
             # Generate step description
@@ -267,6 +276,8 @@ class TutorialMakerApp:
                 ocr_text=ocr_result.cleaned_text if ocr_result.is_valid() else None,
                 ocr_confidence=ocr_result.confidence if ocr_result.is_valid() else 0.0,
                 coordinates=(event.x, event.y),
+                coordinates_pct=(x_pct, y_pct),  # Store percentage coordinates
+                screen_dimensions=(screen_width, screen_height),  # Store screen dimensions at capture time
                 step_type="click"
             )
             

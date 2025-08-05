@@ -216,14 +216,16 @@ class ScreenCapture:
             return image.crop((max(0, x-50), max(0, y-25), 
                              x+50, y+25))
     
-    def add_debug_click_marker(self, image: Image.Image, x: int, y: int, 
+    def add_debug_click_marker(self, image: Image.Image, x: int = None, y: int = None,
+                              x_pct: float = None, y_pct: float = None,
                               marker_size: int = 6, color: str = "red") -> Image.Image:
         """
         Add a debug marker (red dot) at precise click location
         
         Args:
             image: PIL Image to mark
-            x, y: Exact click coordinates
+            x, y: Exact click coordinates (absolute pixels) - legacy support
+            x_pct, y_pct: Click coordinates as percentages (0.0-1.0) - preferred
             marker_size: Size of the marker dot (radius)
             color: Color of the marker
             
@@ -234,23 +236,36 @@ class ScreenCapture:
             return image
         
         try:
+            # Convert percentage coordinates to pixel coordinates if provided
+            if x_pct is not None and y_pct is not None:
+                img_width, img_height = image.size
+                pixel_x = int(x_pct * img_width)
+                pixel_y = int(y_pct * img_height)
+            elif x is not None and y is not None:
+                # Use absolute coordinates (legacy support)
+                pixel_x = x
+                pixel_y = y
+            else:
+                print("Warning: No coordinates provided to add_debug_click_marker")
+                return image
+            
             # Create a copy to avoid modifying original
             marked_image = image.copy()
             draw = ImageDraw.Draw(marked_image)
             
             # Draw filled circle at exact click location
-            left = x - marker_size
-            top = y - marker_size
-            right = x + marker_size
-            bottom = y + marker_size
+            left = pixel_x - marker_size
+            top = pixel_y - marker_size
+            right = pixel_x + marker_size
+            bottom = pixel_y + marker_size
             
             # Draw the marker dot
             draw.ellipse([left, top, right, bottom], fill=color, outline="darkred", width=1)
             
             # Add crosshair for precise location
             crosshair_size = marker_size + 3
-            draw.line([x - crosshair_size, y, x + crosshair_size, y], fill=color, width=1)
-            draw.line([x, y - crosshair_size, x, y + crosshair_size], fill=color, width=1)
+            draw.line([pixel_x - crosshair_size, pixel_y, pixel_x + crosshair_size, pixel_y], fill=color, width=1)
+            draw.line([pixel_x, pixel_y - crosshair_size, pixel_x, pixel_y + crosshair_size], fill=color, width=1)
             
             return marked_image
             

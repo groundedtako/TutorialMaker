@@ -87,8 +87,17 @@ class HTMLExporter:
                     with open(screenshot_full_path, 'rb') as img_file:
                         screenshot_b64 = base64.b64encode(img_file.read()).decode('utf-8')
                     
-                    # Generate click indicator if coordinates exist
-                    if step.coordinates and screenshot_width > 0:
+                    # Generate click indicator using percentage coordinates if available
+                    if step.coordinates_pct and screenshot_width > 0:
+                        # Use percentage coordinates for accurate positioning
+                        pixel_x = int(step.coordinates_pct[0] * screenshot_width)
+                        pixel_y = int(step.coordinates_pct[1] * screenshot_height)
+                        click_indicator_html = self.click_highlighter.add_animated_click_indicator_html(
+                            pixel_x, pixel_y, 
+                            screenshot_width, screenshot_height
+                        )
+                    elif step.coordinates and screenshot_width > 0:
+                        # Fallback to absolute coordinates for legacy data
                         click_indicator_html = self.click_highlighter.add_animated_click_indicator_html(
                             step.coordinates[0], step.coordinates[1], 
                             screenshot_width, screenshot_height
@@ -410,8 +419,29 @@ class WordExporter:
                     try:
                         # Load and process image with click highlighting
                         with Image.open(screenshot_full_path) as img:
-                            if step.coordinates:
+                            if step.coordinates_pct:
+                                # Use percentage coordinates for accurate positioning
+                                img_width, img_height = img.size
+                                pixel_x = int(step.coordinates_pct[0] * img_width)
+                                pixel_y = int(step.coordinates_pct[1] * img_height)
+                                
                                 # Add click indicator to image
+                                img_with_click = self.click_highlighter.add_click_indicator(
+                                    img, pixel_x, pixel_y
+                                )
+                                
+                                # Save processed image temporarily
+                                temp_path = project_path / "temp" / f"highlighted_{step.step_id}.png"
+                                temp_path.parent.mkdir(exist_ok=True)
+                                img_with_click.save(temp_path)
+                                
+                                # Add processed image to document
+                                doc.add_picture(str(temp_path), width=Inches(6))
+                                
+                                # Clean up temp file
+                                temp_path.unlink(missing_ok=True)
+                            elif step.coordinates:
+                                # Fallback to absolute coordinates for legacy data
                                 img_with_click = self.click_highlighter.add_click_indicator(
                                     img, step.coordinates[0], step.coordinates[1]
                                 )

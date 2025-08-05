@@ -215,8 +215,8 @@ class EventMonitor:
                     button_name = "middle"
                 event = MouseClickEvent(
                     timestamp=time.time(),
-                    x=x,
-                    y=y,
+                    x=self._press_pos[0],  # Use press position instead of release
+                    y=self._press_pos[1],  # Use press position instead of release
                     button=button_name,
                     pressed=False,
                     is_drag=False

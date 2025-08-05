@@ -27,6 +27,8 @@ class TutorialStep:
     ocr_text: Optional[str] = None
     ocr_confidence: float = 0.0
     coordinates: Optional[tuple] = None
+    coordinates_pct: Optional[tuple] = None  # (x_pct, y_pct) as floats 0.0-1.0
+    screen_dimensions: Optional[tuple] = None  # (width, height) at time of capture
     step_type: str = "click"  # click, type, special
 
 @dataclass
@@ -183,6 +185,14 @@ class TutorialStorage:
                 if 'coordinates' in step_data and step_data['coordinates']:
                     step_data['coordinates'] = tuple(step_data['coordinates'])
                 
+                # Convert percentage coordinates back to tuple if it exists
+                if 'coordinates_pct' in step_data and step_data['coordinates_pct']:
+                    step_data['coordinates_pct'] = tuple(step_data['coordinates_pct'])
+                
+                # Convert screen dimensions back to tuple if it exists
+                if 'screen_dimensions' in step_data and step_data['screen_dimensions']:
+                    step_data['screen_dimensions'] = tuple(step_data['screen_dimensions'])
+                
                 step = TutorialStep(**step_data)
                 steps.append(step)
             
@@ -318,6 +328,15 @@ class TutorialStorage:
                 # Convert tuple coordinates to list for JSON serialization
                 if step_dict.get('coordinates'):
                     step_dict['coordinates'] = list(step_dict['coordinates'])
+                
+                # Convert tuple percentage coordinates to list for JSON serialization
+                if step_dict.get('coordinates_pct'):
+                    step_dict['coordinates_pct'] = list(step_dict['coordinates_pct'])
+                
+                # Convert tuple screen dimensions to list for JSON serialization
+                if step_dict.get('screen_dimensions'):
+                    step_dict['screen_dimensions'] = list(step_dict['screen_dimensions'])
+                
                 steps_data.append(step_dict)
             
             with open(steps_file, 'w') as f:

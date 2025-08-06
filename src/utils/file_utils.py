@@ -11,6 +11,13 @@ from pathlib import Path
 from typing import Optional
 
 
+def format_duration(duration: float) -> str:
+    """Format duration in seconds to human-readable format"""
+    minutes = int(duration // 60)
+    seconds = int(duration % 60)
+    return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+
+
 def sanitize_filename(filename: str, max_length: int = 100) -> str:
     """
     Sanitize filename for cross-platform compatibility

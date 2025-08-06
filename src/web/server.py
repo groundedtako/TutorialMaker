@@ -18,6 +18,15 @@ from datetime import datetime
 from ..core.storage import TutorialStorage, TutorialMetadata, TutorialStep
 from ..core.exporters import TutorialExporter
 from ..utils.file_utils import open_file_location, get_tutorial_file_info
+from .route_helpers import (
+    load_and_validate_tutorial, render_tutorial_page, handle_tutorial_error,
+    update_tutorial_metadata, update_tutorial_steps, delete_tutorial_step,
+    format_export_results
+)
+from ..utils.api_utils import (
+    success_response, error_response, handle_api_exception, APIException,
+    require_fields, validate_tutorial_id
+)
 
 # Development mode imports
 try:
@@ -86,88 +95,18 @@ class TutorialWebServer:
         def view_tutorial(tutorial_id: str):
             """View/edit specific tutorial"""
             try:
-                metadata = self.storage.load_tutorial_metadata(tutorial_id)
-                steps = self.storage.load_tutorial_steps(tutorial_id)
+                validate_tutorial_id(tutorial_id)
+                metadata, steps = load_and_validate_tutorial(self.storage, tutorial_id)
                 
-                if not metadata:
-                    return render_template('tutorial_not_found.html', tutorial_id=tutorial_id), 404
+                # Log successful load
+                print(f"SUCCESS loading tutorial {tutorial_id}: {metadata.title} ({len(steps)} steps)")
                 
-                if steps is None:
-                    steps = []
+                return render_tutorial_page(metadata, steps, tutorial_id, self.dev_mode)
                 
-                # Validate and clean step data
-                validated_steps = []
-                for i, step in enumerate(steps):
-                    try:
-                        # Check if step has required attributes
-                        if not hasattr(step, 'step_id'):
-                            print(f"Warning: Step {i} missing step_id")
-                            continue
-                        if not hasattr(step, 'description'):
-                            print(f"Warning: Step {i} missing description")
-                            continue
-                        validated_steps.append(step)
-                    except Exception as e:
-                        print(f"Warning: Skipping malformed step {i}: {e}")
-                        continue
-                
-                steps = validated_steps
-                
-                # Detailed success logging
-                print(f"\nSUCCESS loading tutorial {tutorial_id}:")
-                print(f"   Title: {metadata.title}")
-                print(f"   Steps: {len(steps)}")
-                print(f"   Created: {metadata.created_at}")
-                print(f"   Duration: {metadata.duration}s")
-                print(f"   Status: {metadata.status}")
-                
-                # Log step details for debugging
-                if steps:
-                    print(f"   Step details:")
-                    for i, step in enumerate(steps[:3]):  # First 3 steps
-                        print(f"      {i+1}. {step.description[:50]}...")
-                        if hasattr(step, 'screenshot_path'):
-                            print(f"         Screenshot: {step.screenshot_path}")
-                        if hasattr(step, 'ocr_confidence'):
-                            print(f"         OCR: {step.ocr_confidence}")
-                    if len(steps) > 3:
-                        print(f"      ... and {len(steps) - 3} more steps")
-                
-                print(f"   Template: tutorial.html")
-                print(f"   URL: /tutorial/{tutorial_id}")
-                print("   Rendering template...")
-                
-                return render_template('tutorial.html', 
-                                     metadata=metadata, 
-                                     steps=steps,
-                                     tutorial_id=tutorial_id)
+            except APIException as e:
+                return handle_tutorial_error(tutorial_id, e)
             except Exception as e:
-                # Detailed error logging
-                print(f"\nERROR in view_tutorial for {tutorial_id}:")
-                print(f"   Error type: {type(e).__name__}")
-                print(f"   Error message: {str(e)}")
-                print(f"   Tutorial ID: {tutorial_id}")
-                
-                import traceback
-                traceback.print_exc()
-                
-                # Try to load metadata to determine if tutorial exists
-                try:
-                    test_metadata = self.storage.load_tutorial_metadata(tutorial_id)
-                    if test_metadata:
-                        print(f"   Tutorial EXISTS: {test_metadata.title}")
-                        error_msg = f"Template rendering error: {str(e)}"
-                    else:
-                        print(f"   Tutorial MISSING")
-                        return render_template('tutorial_not_found.html', tutorial_id=tutorial_id), 404
-                except Exception as e2:
-                    print(f"   Storage error too: {e2}")
-                    error_msg = f"Storage and template error: {str(e)}"
-                
-                # Return proper error page instead of JSON
-                return render_template('tutorial_error.html', 
-                                     tutorial_id=tutorial_id, 
-                                     error_message=error_msg), 500
+                return handle_tutorial_error(tutorial_id, e)
         
         @self.app.route('/api/tutorials')
         def api_list_tutorials():

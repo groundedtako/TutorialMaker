@@ -21,7 +21,7 @@ from PIL import Image
 
 from .storage import TutorialMetadata, TutorialStep, TutorialStorage
 from .screenshot_processor import ClickHighlighter
-from ..utils.file_utils import sanitize_filename
+from ..utils.file_utils import sanitize_filename, format_duration
 
 
 class HTMLExporter:
@@ -58,7 +58,7 @@ class HTMLExporter:
             description=metadata.description,
             created_date=datetime.fromtimestamp(metadata.created_at).strftime("%B %d, %Y"),
             step_count=metadata.step_count,
-            duration=self._format_duration(metadata.duration),
+            duration=format_duration(metadata.duration),
             steps_html=steps_html,
             click_css=click_css
         )
@@ -138,11 +138,6 @@ class HTMLExporter:
         
         return steps_html
     
-    def _format_duration(self, duration: float) -> str:
-        """Format duration in seconds to human-readable format"""
-        minutes = int(duration // 60)
-        seconds = int(duration % 60)
-        return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
     
     def _get_html_template(self) -> str:
         """Get the HTML template for tutorials"""
@@ -415,7 +410,7 @@ class WordExporter:
         # Add metadata
         doc.add_paragraph(f"Created: {datetime.fromtimestamp(metadata.created_at).strftime('%B %d, %Y')}")
         doc.add_paragraph(f"Steps: {metadata.step_count}")
-        doc.add_paragraph(f"Duration: {self._format_duration(metadata.duration)}")
+        doc.add_paragraph(f"Duration: {format_duration(metadata.duration)}")
         
         if metadata.description:
             doc.add_paragraph(metadata.description)
@@ -493,11 +488,6 @@ class WordExporter:
         doc.save(output_path)
         return str(output_path)
     
-    def _format_duration(self, duration: float) -> str:
-        """Format duration in seconds to human-readable format"""
-        minutes = int(duration // 60)
-        seconds = int(duration % 60)
-        return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
 
 
 class PDFExporter:
@@ -534,7 +524,7 @@ class PDFExporter:
         y -= 20
         c.drawString(50, y, f"Steps: {metadata.step_count}")
         y -= 20
-        c.drawString(50, y, f"Duration: {self._format_duration(metadata.duration)}")
+        c.drawString(50, y, f"Duration: {format_duration(metadata.duration)}")
         
         if metadata.description:
             y -= 40
@@ -605,11 +595,6 @@ class PDFExporter:
         c.save()
         return str(output_path)
     
-    def _format_duration(self, duration: float) -> str:
-        """Format duration in seconds to human-readable format"""
-        minutes = int(duration // 60)
-        seconds = int(duration % 60)
-        return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
 
 
 class MarkdownExporter:
@@ -656,7 +641,7 @@ class MarkdownExporter:
         
         lines.append(f"**Created:** {datetime.fromtimestamp(metadata.created_at).strftime('%B %d, %Y')}")
         lines.append(f"**Steps:** {metadata.step_count}")
-        lines.append(f"**Duration:** {self._format_duration(metadata.duration)}")
+        lines.append(f"**Duration:** {format_duration(metadata.duration)}")
         lines.append("")
         lines.append("---")
         lines.append("")
@@ -715,16 +700,11 @@ class MarkdownExporter:
         lines.append("")
         lines.append("This tutorial was generated automatically using TutorialMaker.")
         lines.append(f"- **Total Steps:** {len(steps)}")
-        lines.append(f"- **Total Duration:** {self._format_duration(metadata.duration)}")
+        lines.append(f"- **Total Duration:** {format_duration(metadata.duration)}")
         lines.append(f"- **Generated on:** {datetime.now().strftime('%B %d, %Y at %I:%M %p')}")
         
         return "\n".join(lines)
     
-    def _format_duration(self, duration: float) -> str:
-        """Format duration in seconds to human-readable format"""
-        minutes = int(duration // 60)
-        seconds = int(duration % 60)
-        return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
 
 
 class TutorialExporter:

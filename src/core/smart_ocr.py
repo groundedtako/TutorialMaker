@@ -315,7 +315,7 @@ class SmartOCRProcessor:
         if ocr_result.confidence < self.min_confidence:
             return OCRResult("", 0.0, ocr_result.engine)
         
-        # Check minimum word length (allow single meaningful characters like × ✓ ✕)
+        # Check minimum word length (allow single meaningful characters like X, +, -)
         if len(text) < self.min_word_length and not self._is_meaningful_single_char(text):
             return OCRResult("", 0.0, ocr_result.engine)
         
@@ -383,11 +383,11 @@ class SmartOCRProcessor:
         if len(text) != 1:
             return False
         
-        # Common meaningful single characters in UI
+        # Common meaningful single characters in UI (ASCII only)
         meaningful_chars = {
-            '×', '✓', '✕', '→', '←', '↑', '↓', '⋮', '☰', '⚙', '🔍', 
             '+', '-', '*', '/', '=', '<', '>', '|', '\\', '&', '@', '#',
-            'X', 'O', '?', '!', '%', '$'
+            'X', 'O', '?', '!', '%', '$', '^', '~', '_', '`', ':',
+            'x'  # lowercase x often used as close button
         }
         
         return text in meaningful_chars or text.isalnum()

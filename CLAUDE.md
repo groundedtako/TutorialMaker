@@ -1,5 +1,26 @@
 # Scribe Local - Screen Recording Tutorial Maker
 
+## CRITICAL DEVELOPMENT GUIDELINES
+
+### Cross-Platform Compatibility Requirements
+- **NEVER use emojis or non-ASCII characters in code, console output, or file content**
+- **NEVER use Unicode symbols in terminal output, error messages, or logging**
+- **Windows/Unix compatibility**: Use only standard ASCII characters (codes 32-126)
+- **File paths**: Use Path() objects with forward slashes for cross-platform compatibility
+- **Console output**: Plain text only - no emojis, Unicode symbols, or fancy characters
+- **Code comments and docstrings**: ASCII characters only
+- **User-facing messages**: Standard ASCII text only
+
+### Examples of FORBIDDEN content:
+```
+NEVER USE: 🎯 ✅ ❌ 🚀 📁 → ← ↑ ↓ • ▼ ▲ ┌ ┐ ├ ┤ é ñ ü
+```
+
+### Approved alternatives:
+```
+Use: "SUCCESS:" "ERROR:" "INFO:" "->" "<-" "*" "-" "+" "|" 
+```
+
 ## Project Overview
 A privacy-focused, local-only screen recording tool that captures user interactions (mouse clicks, keystrokes) and generates shareable tutorials. Inspired by the original Scribe tool, but runs entirely locally without requiring admin privileges or cloud connectivity.
 

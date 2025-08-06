@@ -223,30 +223,15 @@ class TutorialMakerApp:
         print(f"Duration: {final_duration:.1f} seconds")
         print(f"Steps captured: {final_step_count}")
         
-        # Clear current session after storing final stats
-        self.current_session = None
+        # Get project path for user reference
+        project_path = self.storage.get_project_path(tutorial_id)
+        if project_path:
+            print(f"📁 Tutorial saved to: {project_path}")
+            print(f"🌐 Edit in browser: http://localhost:5001/tutorial/{tutorial_id}")
+            print("💡 Use 'export' command or web interface to export to HTML/Word/PDF")
         
-        # Automatically export tutorial to all formats
-        print("\nExporting tutorial...")
-        try:
-            export_results = self.exporter.export_tutorial(tutorial_id, ['html', 'word', 'pdf'])
-            
-            print("✅ Tutorial exported successfully:")
-            for format_name, result_path in export_results.items():
-                if result_path and not result_path.startswith('Error:'):
-                    print(f"  • {format_name.upper()}: {result_path}")
-                else:
-                    print(f"  ⚠️  {format_name.upper()}: {result_path}")
-            
-            # Get project path for user reference
-            project_path = self.storage.get_project_path(tutorial_id)
-            if project_path:
-                print(f"\n📁 Files saved to: {project_path}")
-                print(f"🌐 View in browser: http://localhost:5000/tutorial/{tutorial_id}")
-            
-        except Exception as e:
-            print(f"⚠️  Export failed: {e}")
-            print("You can export later using the web interface.")
+        # Clear current session
+        self.current_session = None
         
         return tutorial_id
     
@@ -282,7 +267,7 @@ class TutorialMakerApp:
             # Add debug marker to screenshot if in debug mode using percentage coordinates
             if self.debug_mode:
                 screenshot = self.screen_capture.add_debug_click_marker(
-                    screenshot, x_pct=x_pct, y_pct=y_pct
+                    screenshot, x_pct=x_pct, y_pct=y_pct, marker_size=8, color="blue"
                 )
             
             # Generate step description

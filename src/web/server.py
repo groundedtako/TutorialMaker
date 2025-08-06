@@ -17,21 +17,34 @@ from datetime import datetime
 
 from ..core.storage import TutorialStorage, TutorialMetadata, TutorialStep
 from ..core.exporters import TutorialExporter
+from ..utils.file_utils import open_file_location, get_tutorial_file_info
+
+# Development mode imports
+try:
+    from ..utils.dev_utils import live_reload_manager, inject_live_reload_script
+    DEV_UTILS_AVAILABLE = True
+except ImportError:
+    DEV_UTILS_AVAILABLE = False
 
 class TutorialWebServer:
     """Web server for tutorial editing and management"""
     
-    def __init__(self, storage: TutorialStorage, port: int = 5000):
+    def __init__(self, storage: TutorialStorage, port: int = 5000, dev_mode: bool = False):
         self.storage = storage
         self.exporter = TutorialExporter(storage)
         self.port = port
         self.app_instance = None  # Reference to main app instance for session status
+        self.dev_mode = dev_mode  # Enable development features
         
         # Create Flask app
         self.app = Flask(__name__, 
                         template_folder=str(Path(__file__).parent / "templates"),
                         static_folder=str(Path(__file__).parent / "static"))
         CORS(self.app)  # Enable CORS for localhost development
+        
+        # Add development mode interceptor
+        if self.dev_mode and DEV_UTILS_AVAILABLE:
+            self._setup_dev_interceptor()
         
         # Set up template filters
         self._setup_template_filters()
@@ -61,7 +74,13 @@ class TutorialWebServer:
         def index():
             """Main page - list all tutorials"""
             tutorials = self.storage.list_tutorials()
-            return render_template('index.html', tutorials=tutorials)
+            html = render_template('index.html', tutorials=tutorials)
+            
+            # Inject live reload in development mode
+            if self.dev_mode and DEV_UTILS_AVAILABLE:
+                html = inject_live_reload_script(html)
+                
+            return html
         
         @self.app.route('/tutorial/<tutorial_id>')
         def view_tutorial(tutorial_id: str):
@@ -94,18 +113,61 @@ class TutorialWebServer:
                 
                 steps = validated_steps
                 
-                # Log successful loads for debugging
-                print(f"Successfully loaded tutorial: {metadata.title} ({len(steps)} steps)")
+                # Detailed success logging
+                print(f"\nSUCCESS loading tutorial {tutorial_id}:")
+                print(f"   Title: {metadata.title}")
+                print(f"   Steps: {len(steps)}")
+                print(f"   Created: {metadata.created_at}")
+                print(f"   Duration: {metadata.duration}s")
+                print(f"   Status: {metadata.status}")
+                
+                # Log step details for debugging
+                if steps:
+                    print(f"   Step details:")
+                    for i, step in enumerate(steps[:3]):  # First 3 steps
+                        print(f"      {i+1}. {step.description[:50]}...")
+                        if hasattr(step, 'screenshot_path'):
+                            print(f"         Screenshot: {step.screenshot_path}")
+                        if hasattr(step, 'ocr_confidence'):
+                            print(f"         OCR: {step.ocr_confidence}")
+                    if len(steps) > 3:
+                        print(f"      ... and {len(steps) - 3} more steps")
+                
+                print(f"   Template: tutorial.html")
+                print(f"   URL: /tutorial/{tutorial_id}")
+                print("   Rendering template...")
                 
                 return render_template('tutorial.html', 
                                      metadata=metadata, 
                                      steps=steps,
                                      tutorial_id=tutorial_id)
             except Exception as e:
-                print(f"Error in view_tutorial: {e}")
+                # Detailed error logging
+                print(f"\nERROR in view_tutorial for {tutorial_id}:")
+                print(f"   Error type: {type(e).__name__}")
+                print(f"   Error message: {str(e)}")
+                print(f"   Tutorial ID: {tutorial_id}")
+                
                 import traceback
                 traceback.print_exc()
-                return jsonify({'error': f'Server error: {str(e)}'}), 500
+                
+                # Try to load metadata to determine if tutorial exists
+                try:
+                    test_metadata = self.storage.load_tutorial_metadata(tutorial_id)
+                    if test_metadata:
+                        print(f"   Tutorial EXISTS: {test_metadata.title}")
+                        error_msg = f"Template rendering error: {str(e)}"
+                    else:
+                        print(f"   Tutorial MISSING")
+                        return render_template('tutorial_not_found.html', tutorial_id=tutorial_id), 404
+                except Exception as e2:
+                    print(f"   Storage error too: {e2}")
+                    error_msg = f"Storage and template error: {str(e)}"
+                
+                # Return proper error page instead of JSON
+                return render_template('tutorial_error.html', 
+                                     tutorial_id=tutorial_id, 
+                                     error_message=error_msg), 500
         
         @self.app.route('/api/tutorials')
         def api_list_tutorials():
@@ -253,6 +315,80 @@ class TutorialWebServer:
                 })
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/tutorial/<tutorial_id>/files')
+        def api_get_tutorial_files(tutorial_id: str):
+            """API: Get tutorial file information"""
+            try:
+                file_info = get_tutorial_file_info(tutorial_id, self.storage)
+                return jsonify(file_info)
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/tutorial/<tutorial_id>/open_location', methods=['POST'])
+        def api_open_file_location(tutorial_id: str):
+            """API: Open tutorial file location in system file manager"""
+            try:
+                data = request.get_json() or {}
+                file_type = data.get('file_type', 'project')  # project, html, word, pdf
+                
+                project_path = self.storage.get_project_path(tutorial_id)
+                if not project_path:
+                    return jsonify({'error': 'Tutorial not found'}), 404
+                
+                if file_type == 'project':
+                    target_path = project_path
+                else:
+                    # Open specific exported file
+                    output_dir = project_path / "output"
+                    
+                    # Load metadata to get the tutorial title for filename matching
+                    metadata = self.storage.load_tutorial_metadata(tutorial_id)
+                    from ..utils.file_utils import sanitize_filename
+                    safe_title = sanitize_filename(metadata.title if metadata else "untitled")
+                    
+                    file_map = {
+                        'html': output_dir / f"{safe_title}.html",
+                        'word': output_dir / f"{safe_title}.docx",
+                        'pdf': output_dir / f"{safe_title}.pdf"
+                    }
+                    
+                    # Fallback to legacy filenames
+                    if file_type in file_map and not file_map[file_type].exists():
+                        legacy_map = {
+                            'html': output_dir / "index.html",
+                            'word': output_dir / "tutorial.docx",
+                            'pdf': output_dir / "tutorial.pdf"
+                        }
+                        if file_type in legacy_map and legacy_map[file_type].exists():
+                            file_map[file_type] = legacy_map[file_type]
+                    
+                    if file_type not in file_map:
+                        return jsonify({'error': f'Unknown file type: {file_type}'}), 400
+                    
+                    target_path = file_map[file_type]
+                    if not target_path.exists():
+                        return jsonify({'error': f'{file_type.upper()} file not found. Export first.'}), 404
+                
+                success = open_file_location(target_path)
+                return jsonify({
+                    'success': success,
+                    'message': f'Opened {file_type} location' if success else 'Failed to open file location'
+                })
+                
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/dev/reload-check')
+        def api_dev_reload_check():
+            """API: Check if reload is needed (development mode)"""
+            if not self.dev_mode or not DEV_UTILS_AVAILABLE:
+                return jsonify({'error': 'Development mode not available'}), 404
+            
+            return jsonify({
+                'timestamp': live_reload_manager.get_reload_timestamp(),
+                'dev_mode': True
+            })
         
         @self.app.route('/api/tutorial/<tutorial_id>/delete', methods=['POST'])
         def api_delete_tutorial(tutorial_id: str):
@@ -422,3 +558,21 @@ class TutorialWebServer:
     def set_app_instance(self, app_instance):
         """Set reference to main app instance for session status"""
         self.app_instance = app_instance
+    
+    def _setup_dev_interceptor(self):
+        """Set up development mode response interceptor"""
+        @self.app.after_request
+        def inject_live_reload(response):
+            # Only inject into HTML responses
+            if (response.content_type and 
+                'text/html' in response.content_type and 
+                response.status_code == 200):
+                
+                try:
+                    html_content = response.get_data(as_text=True)
+                    modified_html = inject_live_reload_script(html_content)
+                    response.set_data(modified_html)
+                except Exception as e:
+                    print(f"Warning: Failed to inject live reload script: {e}")
+                    
+            return response

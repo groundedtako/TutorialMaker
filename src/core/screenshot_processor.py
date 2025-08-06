@@ -82,7 +82,7 @@ class ClickHighlighter:
         y_percent = (click_y / screenshot_height) * 100
         
         return f"""
-        <div class="click-indicator" style="left: {x_percent}%; top: {y_percent}%;">
+        <div class="click-indicator" style="left: calc({x_percent}% - 20px); top: calc({y_percent}% - 20px);">
             <div class="click-circle"></div>
         </div>
         """
@@ -99,8 +99,6 @@ class ClickHighlighter:
             position: absolute;
             width: 40px;
             height: 40px;
-            margin-left: -20px;
-            margin-top: -20px;
             pointer-events: none;
             z-index: 10;
         }

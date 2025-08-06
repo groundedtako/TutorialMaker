@@ -21,6 +21,7 @@ from PIL import Image
 
 from .storage import TutorialMetadata, TutorialStep, TutorialStorage
 from .screenshot_processor import ClickHighlighter
+from ..utils.file_utils import sanitize_filename
 
 
 class HTMLExporter:
@@ -43,7 +44,9 @@ class HTMLExporter:
         Returns:
             Path to generated HTML file
         """
-        output_path = project_path / "output" / "index.html"
+        # Use sanitized tutorial title as filename
+        safe_title = sanitize_filename(metadata.title or "untitled")
+        output_path = project_path / "output" / f"{safe_title}.html"
         
         # Convert steps to HTML
         steps_html = self._generate_steps_html(steps, project_path)
@@ -144,6 +147,8 @@ class HTMLExporter:
     def _get_html_template(self) -> str:
         """Get the HTML template for tutorials"""
         return """<!DOCTYPE html>
+<!-- This is a standalone exported tutorial file -->
+<!-- Export buttons are disabled in standalone mode -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -295,44 +300,52 @@ class HTMLExporter:
     </div>
     
     <div class="export-controls">
-        <h3>Export Tutorial</h3>
-        <button class="export-btn" onclick="exportTutorial('word')">Export to Word</button>
-        <button class="export-btn" onclick="exportTutorial('pdf')">Export to PDF</button>
-        <button class="export-btn" onclick="saveTutorial()">Save Changes</button>
+        <h3>Standalone Tutorial</h3>
+        <p style="color: #666; margin: 0;">This is an exported tutorial file. To edit or re-export, use the TutorialMaker web interface.</p>
+        <p style="color: #666; margin: 5px 0 0 0; font-size: 0.9em;">
+            <strong>💡 Tip:</strong> Run <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">python3 start_web_server.py</code> 
+            to access the full editing interface.
+        </p>
     </div>
 
     <script>
+        // Standalone mode - disable all editing functionality
+        document.addEventListener('DOMContentLoaded', function() {{
+            // Remove delete buttons
+            document.querySelectorAll('.delete-step').forEach(btn => {{
+                btn.style.display = 'none';
+            }});
+            
+            // Make descriptions read-only
+            document.querySelectorAll('.step-description').forEach(desc => {{
+                desc.setAttribute('contenteditable', 'false');
+                desc.style.cursor = 'default';
+                desc.style.backgroundColor = 'transparent';
+            }});
+            
+            // Add notice for users who try to click
+            document.addEventListener('click', function(e) {{
+                if (e.target.classList.contains('step-description') || e.target.closest('.delete-step')) {{
+                    e.preventDefault();
+                    if (confirm('This is a standalone exported file. Would you like instructions on how to edit tutorials?')) {{
+                        alert('To edit tutorials:\\n\\n1. Run: python3 start_web_server.py\\n2. Open http://localhost:5001 in your browser\\n3. Click "Edit Tutorial" for any tutorial');
+                    }}
+                }}
+            }});
+        }});
+        
+        // Disabled functions (kept for compatibility but non-functional)
         function deleteStep(stepId) {{
-            const step = document.querySelector(`[data-step-id="${{stepId}}"]`);
-            if (step) {{
-                step.classList.add('deleted');
-                setTimeout(() => step.style.display = 'none', 300);
-            }}
+            // Disabled in standalone mode
         }}
         
         function exportTutorial(format) {{
-            // This would connect to a backend API for export
-            alert(`Exporting to ${{format.toUpperCase()}}... (Feature coming soon)`);
+            // Disabled in standalone mode
         }}
         
         function saveTutorial() {{
-            // Collect edited descriptions
-            const steps = document.querySelectorAll('.tutorial-step:not(.deleted)');
-            const tutorialData = Array.from(steps).map(step => ({{
-                stepId: step.dataset.stepId,
-                description: step.querySelector('.step-description').textContent
-            }}));
-            
-            console.log('Tutorial data to save:', tutorialData);
-            alert('Changes saved locally! (Backend integration coming soon)');
+            // Disabled in standalone mode
         }}
-        
-        // Auto-save descriptions on edit
-        document.addEventListener('input', function(e) {{
-            if (e.target.classList.contains('step-description')) {{
-                console.log('Description changed for step:', e.target.closest('.tutorial-step').dataset.stepId);
-            }}
-        }});
         
         // Intersection Observer for click animations
         document.addEventListener('DOMContentLoaded', function() {{
@@ -344,6 +357,9 @@ class HTMLExporter:
                         setTimeout(() => {{
                             const clickCircles = entry.target.querySelectorAll('.click-circle');
                             clickCircles.forEach(circle => {{
+                                // Reset animation by removing and re-adding the class
+                                circle.style.animation = 'none';
+                                circle.offsetHeight; // Force reflow
                                 circle.style.animation = 'clickContract 1.5s ease-out';
                             }});
                         }}, 200);
@@ -385,7 +401,9 @@ class WordExporter:
         Returns:
             Path to generated Word document
         """
-        output_path = project_path / "output" / "tutorial.docx"
+        # Use sanitized tutorial title as filename
+        safe_title = sanitize_filename(metadata.title or "untitled")
+        output_path = project_path / "output" / f"{safe_title}.docx"
         
         # Create document
         doc = Document()
@@ -498,7 +516,9 @@ class PDFExporter:
         Returns:
             Path to generated PDF document
         """
-        output_path = project_path / "output" / "tutorial.pdf"
+        # Use sanitized tutorial title as filename
+        safe_title = sanitize_filename(metadata.title or "untitled")
+        output_path = project_path / "output" / f"{safe_title}.pdf"
         
         # Create PDF
         c = canvas.Canvas(str(output_path), pagesize=letter)
@@ -592,6 +612,121 @@ class PDFExporter:
         return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
 
 
+class MarkdownExporter:
+    """Export tutorial to Markdown format"""
+    
+    def export(self, metadata: TutorialMetadata, steps: List[TutorialStep], 
+               project_path: Path) -> str:
+        """
+        Export tutorial to Markdown format
+        
+        Args:
+            metadata: Tutorial metadata
+            steps: List of tutorial steps
+            project_path: Path to tutorial project directory
+            
+        Returns:
+            Path to generated Markdown file
+        """
+        # Use sanitized tutorial title as filename
+        safe_title = sanitize_filename(metadata.title or "untitled")
+        output_path = project_path / "output" / f"{safe_title}.md"
+        
+        # Generate Markdown content
+        md_content = self._generate_markdown_content(metadata, steps, project_path)
+        
+        # Write Markdown file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(md_content)
+        
+        return str(output_path)
+    
+    def _generate_markdown_content(self, metadata: TutorialMetadata, 
+                                   steps: List[TutorialStep], project_path: Path) -> str:
+        """Generate Markdown content for the tutorial"""
+        lines = []
+        
+        # Title and metadata
+        lines.append(f"# {metadata.title}")
+        lines.append("")
+        
+        if metadata.description:
+            lines.append(f"**Description:** {metadata.description}")
+            lines.append("")
+        
+        lines.append(f"**Created:** {datetime.fromtimestamp(metadata.created_at).strftime('%B %d, %Y')}")
+        lines.append(f"**Steps:** {metadata.step_count}")
+        lines.append(f"**Duration:** {self._format_duration(metadata.duration)}")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        
+        # Table of contents
+        if len(steps) > 3:
+            lines.append("## Table of Contents")
+            lines.append("")
+            for i, step in enumerate(steps, 1):
+                step_title = step.description[:50] + "..." if len(step.description) > 50 else step.description
+                lines.append(f"{i}. [{step_title}](#step-{i})")
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+        
+        # Steps
+        for i, step in enumerate(steps, 1):
+            lines.append(f"## Step {i}")
+            lines.append("")
+            lines.append(f"**Action:** {step.description}")
+            lines.append("")
+            
+            # Add coordinates if available
+            if step.coordinates:
+                lines.append(f"**Click Position:** ({step.coordinates[0]}, {step.coordinates[1]})")
+                lines.append("")
+            
+            # Add OCR text if available
+            if step.ocr_text and step.ocr_text.strip():
+                lines.append(f"**Detected Text:** \"{step.ocr_text.strip()}\"")
+                if step.ocr_confidence and step.ocr_confidence > 0:
+                    lines.append(f"**Confidence:** {step.ocr_confidence * 100:.1f}%")
+                lines.append("")
+            
+            # Add screenshot as image reference
+            if step.screenshot_path:
+                screenshot_full_path = project_path / step.screenshot_path
+                if screenshot_full_path.exists():
+                    # Use relative path from output directory
+                    relative_screenshot_path = f"../{step.screenshot_path}"
+                    lines.append(f"![Step {i} Screenshot]({relative_screenshot_path})")
+                    lines.append("")
+                    lines.append(f"*Screenshot: {step.screenshot_path}*")
+                    lines.append("")
+            
+            # Add keyboard input if available
+            if hasattr(step, 'keyboard_input') and step.keyboard_input:
+                lines.append(f"**Typed:** `{step.keyboard_input}`")
+                lines.append("")
+            
+            lines.append("---")
+            lines.append("")
+        
+        # Footer
+        lines.append("## Tutorial Information")
+        lines.append("")
+        lines.append("This tutorial was generated automatically using TutorialMaker.")
+        lines.append(f"- **Total Steps:** {len(steps)}")
+        lines.append(f"- **Total Duration:** {self._format_duration(metadata.duration)}")
+        lines.append(f"- **Generated on:** {datetime.now().strftime('%B %d, %Y at %I:%M %p')}")
+        
+        return "\n".join(lines)
+    
+    def _format_duration(self, duration: float) -> str:
+        """Format duration in seconds to human-readable format"""
+        minutes = int(duration // 60)
+        seconds = int(duration % 60)
+        return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+
+
 class TutorialExporter:
     """Main tutorial exporter that coordinates all export formats"""
     
@@ -600,6 +735,7 @@ class TutorialExporter:
         self.html_exporter = HTMLExporter()
         self.word_exporter = WordExporter()
         self.pdf_exporter = PDFExporter()
+        self.markdown_exporter = MarkdownExporter()
     
     def export_tutorial(self, tutorial_id: str, formats: List[str] = None) -> Dict[str, str]:
         """
@@ -607,7 +743,7 @@ class TutorialExporter:
         
         Args:
             tutorial_id: Tutorial ID to export
-            formats: List of formats to export ('html', 'word', 'pdf'). 
+            formats: List of formats to export ('html', 'word', 'pdf', 'markdown'). 
                     If None, exports to HTML and Word by default.
         
         Returns:
@@ -654,6 +790,14 @@ class TutorialExporter:
             except Exception as e:
                 print(f"PDF export failed: {e}")
                 results['pdf'] = f"Error: {e}"
+        
+        if 'markdown' in formats:
+            try:
+                results['markdown'] = self.markdown_exporter.export(metadata, steps, project_path)
+                print(f"Markdown export completed: {results['markdown']}")
+            except Exception as e:
+                print(f"Markdown export failed: {e}")
+                results['markdown'] = f"Error: {e}"
         
         return results
     

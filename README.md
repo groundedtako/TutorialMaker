@@ -7,7 +7,7 @@ A privacy-focused, local-only screen recording tool that captures user interacti
 - **Universal Screen Capture**: Works with any application on Windows and Mac
 - **Smart Interaction Detection**: Automatically captures mouse clicks and keystrokes
 - **OCR Text Extraction**: Identifies clicked UI elements and buttons
-- **Multiple Export Formats**: HTML (interactive) and Word documents by default, PDF optional
+- **Multiple Export Formats**: HTML (interactive), Word documents, Markdown, and PDF with flexible selection
 - **Web-Based Editor**: Edit tutorials in your browser after recording
 - **Privacy-First**: Everything runs locally - no cloud dependencies
 - **No Admin Required**: Uses standard user permissions
@@ -54,29 +54,76 @@ stop
 exit
 ```
 
-### 2. Export Your Tutorial
+### 2. Edit and Export with Web Interface
 
 ```bash
-# Export all tutorials to default formats (HTML, Word)
-python3 test_export.py
+# Start the web server (production mode)
+python3 server.py
 
-# Or use the command-line export tool
+# Or for development with live reloading
+python3 server.py --dev
+```
+
+This opens your browser to `http://localhost:5001` where you can:
+- **View all your tutorials** with file locations
+- **Edit step descriptions** inline
+- **Delete unwanted steps** with confirmation
+- **Export to multiple formats** (HTML, Word, PDF)
+- **Create new recordings** from the web interface
+- **Smart export options** with tutorial-named files
+- **Cross-platform file opening** - click any path to open in file manager
+
+### 3. Command-Line Export (Alternative)
+
+```bash
+# Export specific tutorial
+python3 export_tutorials.py --tutorial-id YOUR_TUTORIAL_ID
+
+# Export all tutorials
 python3 export_tutorials.py --all
+
+# List available tutorials
+python3 export_tutorials.py --list
 ```
 
-### 3. Edit with Web Interface
+## 🖥️ Server Modes
 
+The unified `server.py` handles all functionality through command-line flags:
+
+### Production Mode (Default)
 ```bash
-# Start the web server
-python3 start_web_server.py
+python3 server.py
 ```
+- ✅ Full recording capabilities
+- ✅ Tutorial viewing and editing
+- ✅ Optimized performance
+- 🌐 Runs on port 5001
 
-This opens your browser to `http://localhost:5000` where you can:
-- View all your tutorials
-- Edit step descriptions
-- Delete unwanted steps
-- Export to different formats
-- Preview tutorials
+### Development Mode
+```bash
+python3 server.py --dev
+```
+- ✅ All production features PLUS:
+- 🔥 **Live reloading** when files change
+- ⚡ **Auto browser refresh** 
+- 👁️ **File system watching**
+- 🛠️ **Enhanced debugging**
+
+### View-Only Mode  
+```bash
+python3 server.py --view-only
+```
+- ✅ View and edit existing tutorials
+- ✅ Export functionality
+- ❌ No recording capabilities
+- 🎯 Use when dependencies are missing
+
+### Other Options
+```bash
+python3 server.py --port 8080     # Custom port
+python3 server.py --no-browser    # Don't open browser
+python3 server.py --help          # Show all options
+```
 
 ## 📁 File Structure
 
@@ -92,9 +139,10 @@ Your tutorials are stored in:
 │   │   │   ├── step_002.png
 │   │   │   └── ...
 │   │   └── output/                 # Generated files
-│   │       ├── index.html          # Interactive tutorial
-│   │       ├── tutorial.docx       # Word document
-│   │       └── tutorial.pdf        # PDF version
+│   │       ├── My_Tutorial_Title.html   # Interactive tutorial (named after tutorial)
+│   │       ├── My_Tutorial_Title.docx   # Word document (named after tutorial)
+│   │       ├── My_Tutorial_Title.md     # Markdown document (named after tutorial)
+│   │       └── My_Tutorial_Title.pdf    # PDF version (named after tutorial)
 │   └── tutorial_c6501472/
 └── templates/
 ```
@@ -138,7 +186,7 @@ python3 export_tutorials.py --tutorial-id 90d54395 --formats html
 python3 export_tutorials.py --all
 
 # Export all tutorials to specific formats
-python3 export_tutorials.py --all --formats html word pdf
+python3 export_tutorials.py --all --formats html word markdown pdf
 ```
 
 ### Web Interface Features
@@ -154,7 +202,9 @@ python3 export_tutorials.py --all --formats html word pdf
    - Changes are saved automatically
 
 3. **Export Options**
-   - Choose specific formats (HTML, Word, PDF)
+   - Multi-select checkbox interface for formats
+   - Choose from HTML, Word, Markdown, and PDF
+   - Smart export positioning (always above button)
    - Download files directly from browser
    - Preview tutorials before sharing
 
@@ -175,7 +225,7 @@ python3 export_tutorials.py --all --formats html word pdf
 python3 export_tutorials.py --list
 
 # Export specific tutorial
-python3 export_tutorials.py --tutorial-id <ID> --formats html word pdf
+python3 export_tutorials.py --tutorial-id <ID> --formats html word markdown pdf
 
 # Export all tutorials
 python3 export_tutorials.py --all
@@ -210,6 +260,14 @@ python3 start_web_server.py
 - **Embedded screenshots** with click indicators highlighted
 - **Metadata included** (creation date, duration, etc.)
 - **Ready for sharing** or printing
+
+### Markdown Export
+- **Developer-friendly format** perfect for documentation
+- **Table of contents** with clickable links for tutorials >3 steps
+- **Image references** with relative paths for portability
+- **OCR text inclusion** with confidence percentages
+- **Click coordinates** and action descriptions
+- **Compatible** with GitHub, wikis, and documentation systems
 
 ### PDF Export (Optional)
 - **Print-ready format** with professional styling

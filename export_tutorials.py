@@ -15,7 +15,7 @@ from src.core.app import TutorialMakerApp
 def main():
     parser = argparse.ArgumentParser(description="Export TutorialMaker tutorials")
     parser.add_argument("--tutorial-id", type=str, help="Specific tutorial ID to export")
-    parser.add_argument("--formats", nargs="+", choices=["html", "word", "pdf"], 
+    parser.add_argument("--formats", nargs="+", choices=["html", "word", "pdf", "markdown"], 
                         default=["html", "word"], help="Export formats")
     parser.add_argument("--list", action="store_true", help="List available tutorials")
     parser.add_argument("--all", action="store_true", help="Export all tutorials")

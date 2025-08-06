@@ -11,6 +11,7 @@ from pathlib import Path
 from .capture import ScreenCapture
 from .events import EventMonitor, MouseClickEvent, KeyPressEvent, EventType
 from .ocr import OCREngine, OCRResult
+from .smart_ocr import SmartOCRProcessor
 from .storage import TutorialStorage, TutorialStep, TutorialMetadata
 from .exporters import TutorialExporter
 from ..web.server import TutorialWebServer
@@ -86,6 +87,7 @@ class TutorialMakerApp:
         self.screen_capture = ScreenCapture(debug_mode=debug_mode)
         self.event_monitor = EventMonitor()
         self.ocr_engine = OCREngine()
+        self.smart_ocr = SmartOCRProcessor()
         self.storage = TutorialStorage()
         self.exporter = TutorialExporter(self.storage)
         self.web_server = TutorialWebServer(self.storage)
@@ -256,13 +258,8 @@ class TutorialMakerApp:
                 print("Failed to capture screenshot")
                 return
             
-            # Extract region around click for OCR
-            click_region = self.screen_capture.capture_click_region(event.x, event.y)
-            
-            # Perform OCR on the clicked region
-            ocr_result = OCRResult()
-            if click_region:
-                ocr_result = self.ocr_engine.extract_text(click_region)
+            # Use smart OCR processing for better accuracy
+            ocr_result = self.smart_ocr.process_click_region(screenshot, event.x, event.y, self.debug_mode)
             
             # Add debug marker to screenshot if in debug mode using percentage coordinates
             if self.debug_mode:
@@ -373,10 +370,20 @@ class TutorialMakerApp:
     def _generate_click_description(self, event: MouseClickEvent, ocr_result: OCRResult) -> str:
         """Generate a human-readable description for a click event"""
         if ocr_result.is_valid() and ocr_result.cleaned_text:
-            # We have OCR text - use it
-            return f'Click on "{ocr_result.cleaned_text}"'
+            text = ocr_result.cleaned_text.strip()
+            
+            # Handle different types of OCR results
+            if ocr_result.engine == "context_analysis":
+                # Context-inferred descriptions
+                return f'Click on {text}'
+            elif len(text) <= 2:
+                # Very short text might be a symbol or single character
+                return f'Click on "{text}" element'
+            else:
+                # Normal text result
+                return f'Click on "{text}"'
         else:
-            # No OCR text - use coordinates
+            # No OCR text - use coordinates with enhanced description
             return f'Click at position ({event.x}, {event.y})'
     
     def list_tutorials(self) -> List[TutorialMetadata]:

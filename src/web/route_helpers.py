@@ -52,7 +52,7 @@ def load_and_validate_tutorial(storage, tutorial_id: str) -> Tuple[Optional[Tuto
     return metadata, validated_steps
 
 
-def render_tutorial_page(metadata: TutorialMetadata, steps: List[TutorialStep], tutorial_id: str, dev_mode: bool = False) -> str:
+def render_tutorial_page(metadata: TutorialMetadata, steps: List[TutorialStep], tutorial_id: str) -> str:
     """
     Render the tutorial page template
     
@@ -60,7 +60,6 @@ def render_tutorial_page(metadata: TutorialMetadata, steps: List[TutorialStep], 
         metadata: Tutorial metadata
         steps: List of tutorial steps
         tutorial_id: Tutorial ID
-        dev_mode: Whether in development mode
         
     Returns:
         Rendered HTML string
@@ -86,8 +85,7 @@ def render_tutorial_page(metadata: TutorialMetadata, steps: List[TutorialStep], 
         'tutorial.html',
         metadata=metadata,
         steps=display_steps,
-        tutorial_id=tutorial_id,
-        dev_mode=dev_mode
+        tutorial_id=tutorial_id
     )
 
 

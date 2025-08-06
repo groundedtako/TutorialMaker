@@ -28,32 +28,22 @@ from ..utils.api_utils import (
     require_fields, validate_tutorial_id
 )
 
-# Development mode imports
-try:
-    from ..utils.dev_utils import live_reload_manager, inject_live_reload_script
-    DEV_UTILS_AVAILABLE = True
-except ImportError:
-    DEV_UTILS_AVAILABLE = False
+# No development mode imports - removed for stability
 
 class TutorialWebServer:
     """Web server for tutorial editing and management"""
     
-    def __init__(self, storage: TutorialStorage, port: int = 5000, dev_mode: bool = False):
+    def __init__(self, storage: TutorialStorage, port: int = 5000):
         self.storage = storage
         self.exporter = TutorialExporter(storage)
         self.port = port
         self.app_instance = None  # Reference to main app instance for session status
-        self.dev_mode = dev_mode  # Enable development features
         
         # Create Flask app
         self.app = Flask(__name__, 
                         template_folder=str(Path(__file__).parent / "templates"),
                         static_folder=str(Path(__file__).parent / "static"))
         CORS(self.app)  # Enable CORS for localhost development
-        
-        # Add development mode interceptor
-        if self.dev_mode and DEV_UTILS_AVAILABLE:
-            self._setup_dev_interceptor()
         
         # Set up template filters
         self._setup_template_filters()
@@ -83,13 +73,7 @@ class TutorialWebServer:
         def index():
             """Main page - list all tutorials"""
             tutorials = self.storage.list_tutorials()
-            html = render_template('index.html', tutorials=tutorials)
-            
-            # Inject live reload in development mode
-            if self.dev_mode and DEV_UTILS_AVAILABLE:
-                html = inject_live_reload_script(html)
-                
-            return html
+            return render_template('index.html', tutorials=tutorials)
         
         @self.app.route('/tutorial/<tutorial_id>')
         def view_tutorial(tutorial_id: str):
@@ -101,7 +85,7 @@ class TutorialWebServer:
                 # Log successful load
                 print(f"SUCCESS loading tutorial {tutorial_id}: {metadata.title} ({len(steps)} steps)")
                 
-                return render_tutorial_page(metadata, steps, tutorial_id, self.dev_mode)
+                return render_tutorial_page(metadata, steps, tutorial_id)
                 
             except APIException as e:
                 return handle_tutorial_error(tutorial_id, e)
@@ -318,16 +302,6 @@ class TutorialWebServer:
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
         
-        @self.app.route('/api/dev/reload-check')
-        def api_dev_reload_check():
-            """API: Check if reload is needed (development mode)"""
-            if not self.dev_mode or not DEV_UTILS_AVAILABLE:
-                return jsonify({'error': 'Development mode not available'}), 404
-            
-            return jsonify({
-                'timestamp': live_reload_manager.get_reload_timestamp(),
-                'dev_mode': True
-            })
         
         @self.app.route('/api/tutorial/<tutorial_id>/delete', methods=['POST'])
         def api_delete_tutorial(tutorial_id: str):
@@ -498,20 +472,3 @@ class TutorialWebServer:
         """Set reference to main app instance for session status"""
         self.app_instance = app_instance
     
-    def _setup_dev_interceptor(self):
-        """Set up development mode response interceptor"""
-        @self.app.after_request
-        def inject_live_reload(response):
-            # Only inject into HTML responses
-            if (response.content_type and 
-                'text/html' in response.content_type and 
-                response.status_code == 200):
-                
-                try:
-                    html_content = response.get_data(as_text=True)
-                    modified_html = inject_live_reload_script(html_content)
-                    response.set_data(modified_html)
-                except Exception as e:
-                    print(f"Warning: Failed to inject live reload script: {e}")
-                    
-            return response

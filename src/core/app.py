@@ -96,6 +96,8 @@ class TutorialMakerApp:
         
         # Current session
         self.current_session: Optional[RecordingSession] = None
+        # Timestamp when recording was stopped (to ignore events that occurred before stop)
+        self.stop_timestamp: Optional[float] = None
         
         # Set up event callbacks
         self.event_monitor.set_mouse_callback(self._on_mouse_click)
@@ -135,6 +137,9 @@ class TutorialMakerApp:
         # Stop any current session
         if self.current_session:
             self.stop_recording()
+        
+        # Clear stop timestamp for new session
+        self.stop_timestamp = None
         
         # Create new tutorial project
         tutorial_id = self.storage.create_tutorial_project(title, description)
@@ -198,11 +203,17 @@ class TutorialMakerApp:
         tutorial_id = self.current_session.tutorial_id
         tutorial_title = self.current_session.title
         
-        # Stop session
-        self.current_session.stop()
+        # Record the stop timestamp to ignore events that occurred before this moment
+        self.stop_timestamp = time.time()
+        
+        # Immediately set session status to stopped to prevent any more event processing
+        self.current_session.status = "stopped"
         
         # Stop event monitoring
         self.event_monitor.stop_monitoring()
+        
+        # Finalize session data
+        self.current_session.stop()
         
         # Update storage
         self.storage.update_tutorial_status(tutorial_id, "completed")
@@ -242,6 +253,14 @@ class TutorialMakerApp:
         if not self.current_session or not self.current_session.is_recording():
             return
         
+        # Double-check session status in case it changed during event processing
+        if not self.current_session or self.current_session.status == "stopped":
+            return
+        
+        # Ignore events that occurred before or very close to when stop was called
+        if self.stop_timestamp and event.timestamp <= self.stop_timestamp + 0.1:  # 100ms grace period
+            return
+        
         try:
             # Get screen dimensions at the time of click
             screen_info = self.screen_capture.get_screen_info()
@@ -258,8 +277,12 @@ class TutorialMakerApp:
                 print("Failed to capture screenshot")
                 return
             
+            # Convert click coordinates to screenshot pixel coordinates
+            screenshot_click_x = int(x_pct * screenshot.size[0])
+            screenshot_click_y = int(y_pct * screenshot.size[1])
+            
             # Use smart OCR processing for better accuracy
-            ocr_result = self.smart_ocr.process_click_region(screenshot, event.x, event.y, self.debug_mode)
+            ocr_result = self.smart_ocr.process_click_region(screenshot, screenshot_click_x, screenshot_click_y, self.debug_mode)
             
             # Add debug marker to screenshot if in debug mode using percentage coordinates
             if self.debug_mode:
@@ -308,6 +331,14 @@ class TutorialMakerApp:
     def _on_keyboard_event(self, event: KeyPressEvent):
         """Handle keyboard events"""
         if not self.current_session or not self.current_session.is_recording():
+            return
+        
+        # Double-check session status in case it changed during event processing
+        if not self.current_session or self.current_session.status == "stopped":
+            return
+        
+        # Ignore events that occurred before or very close to when stop was called
+        if self.stop_timestamp and event.timestamp <= self.stop_timestamp + 0.1:  # 100ms grace period
             return
         
         try:

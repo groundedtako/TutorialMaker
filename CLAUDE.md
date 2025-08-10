@@ -87,6 +87,24 @@ A privacy-focused, local-only screen recording tool that captures user interacti
 - **Document Export**: `python-docx`, `reportlab`
 - **GUI**: `tkinter` or `PyQt` for main interface
 
+### System Dependencies
+**CRITICAL**: Always update requirements.txt and documentation when adding new dependencies.
+
+**OCR Engine (Required)**:
+- **macOS**: `brew install tesseract`
+- **Ubuntu/Debian**: `sudo apt-get install tesseract-ocr`
+- **Windows**: Download from [UB-Mannheim Tesseract](https://github.com/UB-Mannheim/tesseract/wiki)
+
+**Python Dependencies**:
+- Install with: `pip install -r requirements.txt`
+- **Important**: Use `numpy>=1.21.0,<2.0` and `opencv-python>=4.6.0,<4.8.0` for compatibility
+- Remove conflicting packages: `pip uninstall opencv-python-headless`
+
+**Dependency Compatibility**:
+- NumPy 2.x is incompatible with older OpenCV versions
+- Always test OCR functionality after dependency changes
+- Use `python3 -c "from src.core.smart_ocr import SmartOCRProcessor; print('OCR OK')"` to verify
+
 ## Implementation Plan
 
 ### Phase 1: Core Capture System ✅ (Planned)

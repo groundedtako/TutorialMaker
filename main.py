@@ -36,7 +36,7 @@ def main():
     
     try:
         # Import and run the main application
-        from core.app import TutorialMakerApp
+        from src.core.app import TutorialMakerApp
         app = TutorialMakerApp(debug_mode=args.debug)
         app.run()
     except ImportError as e:

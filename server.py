@@ -49,7 +49,7 @@ Examples:
     parser.add_argument(
         '--debug',
         action='store_true',
-        help='Enable Flask debug mode'
+        help='Enable debug mode (Flask debug + OCR debug images with click markers)'
     )
     
     return parser.parse_args()
@@ -113,7 +113,7 @@ class UnifiedServer:
             if self.recording_available:
                 print("🚀 Starting with full recording support")
                 from src.core.app import TutorialMakerApp
-                self.app = TutorialMakerApp(debug_mode=False)
+                self.app = TutorialMakerApp(debug_mode=self.args.debug)
                 self.server = self.app.web_server
                 self.server.port = self.args.port
             else:

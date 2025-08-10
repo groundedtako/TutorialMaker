@@ -2,12 +2,18 @@
 mss>=9.0.1              # Cross-platform screenshot capture
 pynput>=1.7.6            # Cross-platform input monitoring
 pillow>=10.0.0           # Image processing
-numpy>=1.24.0            # Array operations
-opencv-python>=4.8.0     # Computer vision and image processing
+numpy>=1.21.0,<2.3.0     # Array operations (compatible with OpenCV and EasyOCR)
+opencv-python-headless>=4.6.0  # Computer vision and image processing (headless for EasyOCR compatibility)
 
 # OCR dependencies
-pytesseract>=0.3.10      # OCR text extraction
+pytesseract>=0.3.10      # OCR text extraction (requires tesseract system binary)
 easyocr>=1.7.0           # Backup OCR engine
+
+# System dependencies (install separately):
+# - tesseract: OCR engine binary
+#   macOS: brew install tesseract
+#   Ubuntu: sudo apt-get install tesseract-ocr
+#   Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
 
 # Web server for editing interface
 flask>=2.3.0             # Local web server

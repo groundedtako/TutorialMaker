@@ -18,6 +18,14 @@ try:
     PYNPUT_AVAILABLE = True
 except ImportError:
     PYNPUT_AVAILABLE = False
+    # Create dummy classes for type hints when pynput is not available
+    class Button:
+        left = "left"
+        right = "right" 
+        middle = "middle"
+    
+    class Key:
+        pass
     print("Warning: pynput not available. Event monitoring will be limited.")
 
 class EventType(Enum):

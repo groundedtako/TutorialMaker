@@ -1,9 +1,23 @@
 import time
 import os
 import pytest
-from pynput.mouse import Controller, Button
 import sys
-import os
+
+# Skip entire module if in CI or if pynput is not available
+pytest_plugins = []
+ci_skip = pytest.mark.skipif(
+    os.environ.get("CI") == "true" or os.environ.get("DISPLAY") is None,
+    reason="GUI integration test; requires local desktop environment with display."
+)
+
+try:
+    from pynput.mouse import Controller, Button
+    PYNPUT_AVAILABLE = True
+except ImportError:
+    PYNPUT_AVAILABLE = False
+
+pytestmark = pytest.mark.skipif(not PYNPUT_AVAILABLE, reason="pynput not available")
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import the app and storage classes
 from src.core.app import TutorialMakerApp

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Tutorial Error - TutorialMaker{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header" style="background: #dc3545; color: white;">
+        <h2 style="margin: 0;">Tutorial Loading Error</h2>
+    </div>
+    <div class="card-body">
+        <p>There was an error loading the tutorial. This is likely a template or data formatting issue.</p>
+        
+        <div style="margin: 20px 0;">
+            <strong>Tutorial ID:</strong> <code>{{ tutorial_id }}</code><br>
+            <strong>Error:</strong> <code style="color: #dc3545;">{{ error_message }}</code>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <a href="/" class="btn btn-primary">← Back to Home</a>
+            <button onclick="window.history.back()" class="btn btn-secondary">Go Back</button>
+            <button onclick="retryLoad()" class="btn" style="background: #17a2b8; color: white;">Retry</button>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        Technical Details
+    </div>
+    <div class="card-body">
+        <p>This error means the tutorial exists but there's a problem with:</p>
+        <ul>
+            <li>Template rendering (Jinja2 syntax errors)</li>
+            <li>Data formatting (invalid step data)</li>
+            <li>Missing template files</li>
+            <li>Server configuration issues</li>
+        </ul>
+        
+        <p><strong>For developers:</strong> Check the server console logs for detailed stack traces.</p>
+    </div>
+</div>
+
+<script>
+function retryLoad() {
+    console.log('Retrying tutorial load...');
+    showAlert('Retrying...', 'info');
+    setTimeout(() => {
+        window.location.reload();
+    }, 1000);
+}
+
+// Add detailed frontend logging
+console.group('Tutorial Error Debug Info');
+console.log('Tutorial ID:', '{{ tutorial_id }}');
+console.log('Error Message:', '{{ error_message }}');
+console.log('Current URL:', window.location.href);
+console.log('Timestamp:', new Date().toISOString());
+console.groupEnd();
+</script>
+{% endblock %}

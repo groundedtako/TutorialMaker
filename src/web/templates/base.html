@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TutorialMaker{% endblock %}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .header nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 20px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .header nav a:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #0056b3;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn-success {
+            background: #28a745;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        .tutorial-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .tutorial-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .tutorial-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .tutorial-card-body {
+            padding: 20px;
+        }
+        
+        .tutorial-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #007bff;
+        }
+        
+        .tutorial-meta {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+        
+        .tutorial-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .alert {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+        
+        .recording-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            padding: 15px;
+            z-index: 1000;
+            min-width: 200px;
+            display: none;
+        }
+        
+        .recording-status.visible {
+            display: block;
+        }
+        
+        .recording-status .status-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .recording-status .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .recording-status .status-dot.recording {
+            background: #dc3545;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .recording-status .status-dot.paused {
+            background: #fd7e14;
+        }
+        
+        .recording-status .status-dot.stopped {
+            background: #6c757d;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .header .container {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .tutorial-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>TutorialMaker</h1>
+            <nav>
+                <a href="/">Home</a>
+                <a href="#" onclick="refreshPage()">Refresh</a>
+            </nav>
+        </div>
+    </div>
+    
+    <!-- Recording Status Indicator -->
+    <div id="recordingStatus" class="recording-status">
+        <div class="status-indicator">
+            <div id="statusDot" class="status-dot"></div>
+            <strong id="statusText">Checking...</strong>
+        </div>
+        <div id="statusDetails" style="font-size: 0.9em; color: #666;"></div>
+    </div>
+    
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <script>
+        function refreshPage() {
+            window.location.reload();
+        }
+        
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+        
+        // Recording status functionality
+        async function updateRecordingStatus() {
+            try {
+                const response = await fetch('/api/recording/status');
+                const status = await response.json();
+                
+                const statusElement = document.getElementById('recordingStatus');
+                const dotElement = document.getElementById('statusDot');
+                const textElement = document.getElementById('statusText');
+                const detailsElement = document.getElementById('statusDetails');
+                
+                if (status.status === 'no_session') {
+                    statusElement.classList.remove('visible');
+                    return;
+                }
+                
+                statusElement.classList.add('visible');
+                
+                // Update status dot and text
+                dotElement.className = `status-dot ${status.status}`;
+                
+                if (status.status === 'recording') {
+                    textElement.textContent = 'Recording';
+                    detailsElement.innerHTML = `
+                        Tutorial: ${status.title}<br>
+                        Steps: ${status.step_count}<br>
+                        Duration: ${Math.round(status.duration || 0)}s
+                    `;
+                } else if (status.status === 'paused') {
+                    textElement.textContent = 'Paused';
+                    detailsElement.innerHTML = `
+                        Tutorial: ${status.title}<br>
+                        Steps: ${status.step_count}<br>
+                        Duration: ${Math.round(status.duration || 0)}s
+                    `;
+                } else {
+                    textElement.textContent = 'Ready';
+                    detailsElement.innerHTML = `Tutorial: ${status.title || 'None'}`;
+                }
+            } catch (error) {
+                console.log('Recording status not available');
+                document.getElementById('recordingStatus').classList.remove('visible');
+            }
+        }
+        
+        // Smart error detection and handling
+        function handleTutorialPageErrors() {
+            const path = window.location.pathname;
+            const bodyText = document.body.textContent;
+            
+            // Only handle tutorial pages
+            if (!path.includes('/tutorial/')) return;
+            
+            // Extract tutorial ID for logging
+            const tutorialId = path.split('/tutorial/')[1];
+            
+            console.group('Tutorial Page Error Detection');
+            console.log('Path:', path);
+            console.log('Tutorial ID:', tutorialId);
+            console.log('Page title:', document.title);
+            
+            let shouldRedirect = false;
+            let redirectReason = '';
+            
+            // Check for specific error conditions
+            if (document.title.includes('Tutorial Not Found')) {
+                shouldRedirect = true;
+                redirectReason = 'Tutorial not found (404)';
+            } else if (bodyText.includes('Tutorial Not Found') && !bodyText.includes('Tutorial Loading Error')) {
+                shouldRedirect = true;
+                redirectReason = 'Tutorial not found in content';
+            } else if (document.title.includes('500 Internal Server Error')) {
+                console.warn('Server error detected - NOT redirecting, user should see error details');
+            } else if (bodyText.includes('Tutorial Loading Error')) {
+                console.warn('Template error detected - NOT redirecting, showing error page');
+            }
+            
+            console.log('Should redirect:', shouldRedirect);
+            console.log('Reason:', redirectReason);
+            console.groupEnd();
+            
+            if (shouldRedirect) {
+                showAlert(`${redirectReason}. Redirecting to home...`, 'error');
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2500); // Longer delay to let user read the message
+            }
+        }
+        
+        // Run error detection after page loads
+        setTimeout(handleTutorialPageErrors, 200);
+        
+        // Update status on page load and periodically
+        document.addEventListener('DOMContentLoaded', function() {
+            updateRecordingStatus();
+            setInterval(updateRecordingStatus, 2000); // Update every 2 seconds
+        });
+        
+        {% block scripts %}{% endblock %}
+    </script>
+</body>
+</html>

@@ -1,0 +1,289 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""
+PyInstaller spec file for TutorialMaker
+This ensures all dependencies are bundled into the executable
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Get the current directory
+current_dir = Path.cwd()
+src_dir = current_dir / "src"
+
+# Define hidden imports - all Python packages that PyInstaller might miss
+hidden_imports = [
+    # Core dependencies
+    'pkg_resources.py2_warn',
+    'pkg_resources.extern',
+    
+    # Image processing
+    'PIL',
+    'PIL._tkinter_finder',
+    'PIL.Image',
+    'PIL.ImageTk',
+    'PIL.ImageDraw',
+    'PIL.ImageFont',
+    'PIL.ImageEnhance',
+    'PIL.ImageFilter',
+    'PIL.ImageOps',
+    
+    # Computer vision
+    'cv2',
+    'numpy',
+    'numpy.core',
+    'numpy.core._methods',
+    'numpy.lib.format',
+    
+    # OCR engines
+    'pytesseract',
+    'easyocr',
+    'easyocr.detection',
+    'easyocr.recognition',
+    'easyocr.utils',
+    
+    # Input monitoring
+    'pynput',
+    'pynput.mouse',
+    'pynput.keyboard',
+    'pynput._util',
+    
+    # Screen capture
+    'mss',
+    'mss.base',
+    'mss.exception',
+    'mss.factory',
+    'mss.models',
+    'mss.screenshot',
+    'mss.tools',
+    
+    # Web framework
+    'flask',
+    'flask.templating',
+    'flask.json',
+    'flask_cors',
+    'werkzeug',
+    'werkzeug.serving',
+    'werkzeug.utils',
+    'jinja2',
+    'jinja2.ext',
+    'markupsafe',
+    
+    # Document generation
+    'docx',
+    'python_docx',
+    'reportlab',
+    'reportlab.pdfgen',
+    'reportlab.lib',
+    'markdown',
+    
+    # System utilities
+    'webbrowser',
+    'threading',
+    'queue',
+    'subprocess',
+    'platform',
+    'tempfile',
+    'shutil',
+    'json',
+    'time',
+    'datetime',
+    'pathlib',
+    'uuid',
+    
+    # Our application modules
+    'src',
+    'src.core',
+    'src.core.app',
+    'src.core.capture',
+    'src.core.events',
+    'src.core.ocr',
+    'src.core.smart_ocr',
+    'src.core.storage',
+    'src.core.exporters',
+    'src.web',
+    'src.web.server',
+    'src.web.route_helpers',
+    'src.utils',
+    'src.utils.file_utils',
+    'src.utils.api_utils',
+]
+
+# Define data files to include
+datas = [
+    # Application source code
+    (str(src_dir), 'src'),
+    
+    # Web templates
+    ('src/web/templates', 'src/web/templates'),
+    ('src/web/static', 'src/web/static'),
+    
+    # Configuration files
+    ('requirements.txt', '.'),
+    ('CLAUDE.md', '.'),
+    ('README.md', '.'),
+    ('CHANGELOG.md', '.'),
+]
+
+# Add Tesseract OCR binaries if available
+import os
+if os.path.exists('tesseract_bundle'):
+    datas.append(('tesseract_bundle', 'tesseract'))
+    print("Adding Tesseract OCR bundle to executable")
+
+# Collect all submodules for critical packages
+collect_all = [
+    'easyocr',
+    'pytesseract', 
+    'cv2',
+    'numpy',
+    'PIL',
+    'flask',
+    'werkzeug',
+    'jinja2',
+    'docx',
+    'reportlab',
+    'mss',
+    'pynput',
+]
+
+# Platform-specific considerations
+if sys.platform == 'win32':
+    # Windows-specific hidden imports
+    hidden_imports.extend([
+        'win32api',
+        'win32gui',
+        'win32con',
+        'win32clipboard',
+        'pywintypes',
+    ])
+elif sys.platform == 'darwin':
+    # macOS-specific hidden imports
+    hidden_imports.extend([
+        'Foundation',
+        'Quartz',
+        'AppKit',
+        'objc',
+    ])
+elif sys.platform.startswith('linux'):
+    # Linux-specific hidden imports
+    hidden_imports.extend([
+        'Xlib',
+        'Xlib.display',
+        'Xlib.X',
+    ])
+
+# Analysis configuration
+a = Analysis(
+    ['main.py'],
+    pathex=[str(current_dir)],
+    binaries=[],
+    datas=datas,
+    hiddenimports=hidden_imports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[
+        # Exclude unnecessary packages to reduce size
+        'matplotlib',
+        'pandas',
+        'scipy',
+        'sklearn',
+        'tensorflow',
+        'torch',
+        'jupyter',
+        'IPython',
+        'notebook',
+        'pytest',
+        'sphinx',
+        'tkinter.test',
+        'unittest',
+        'test',
+        'tests',
+    ],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=None,
+    noarchive=False,
+)
+
+# Collect all specified packages
+for pkg in collect_all:
+    try:
+        a.binaries += collect_submodules(pkg)
+        a.datas += collect_data_files(pkg)
+    except Exception as e:
+        print(f"Warning: Could not collect {pkg}: {e}")
+
+# Remove duplicate data files
+a.datas = list(set(a.datas))
+
+# PYZ archive
+pyz = PYZ(a.pure, a.zipped_data, cipher=None)
+
+# Platform-specific executable configuration
+if sys.platform == 'win32':
+    exe_name = 'tutorialmaker-windows.exe'
+    console = True  # Keep console for debugging; can be False for production
+    icon = None  # Add icon path here if you have one
+elif sys.platform == 'darwin':
+    exe_name = 'tutorialmaker-macos'
+    console = True
+    icon = None
+else:  # Linux
+    exe_name = 'tutorialmaker-linux'
+    console = True
+    icon = None
+
+# Executable configuration
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name=exe_name,
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=console,
+    disable_windowed_traceback=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=icon,
+)
+
+# Collect everything into a directory
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name=exe_name.replace('.exe', ''),  # Directory name without .exe
+)
+
+# macOS App bundle (optional)
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        coll,
+        name='TutorialMaker.app',
+        icon=icon,
+        bundle_identifier='com.tutorialmaker.app',
+        info_plist={
+            'CFBundleName': 'TutorialMaker',
+            'CFBundleDisplayName': 'TutorialMaker',
+            'CFBundleVersion': '1.0.0',
+            'CFBundleShortVersionString': '1.0.0',
+            'NSHighResolutionCapable': True,
+            'NSRequiresAquaSystemAppearance': False,
+            'LSUIElement': False,  # Set to True to hide from dock
+            'NSMicrophoneUsageDescription': 'TutorialMaker needs microphone access for recording tutorials.',
+            'NSScreenCaptureUsageDescription': 'TutorialMaker needs screen recording access to capture your actions.',
+            'NSAccessibilityUsageDescription': 'TutorialMaker needs accessibility access to monitor mouse and keyboard events.',
+        },
+    )

@@ -1,0 +1,926 @@
+{% extends "base.html" %}
+
+{% block title %}TutorialMaker - Home{% endblock %}
+
+{% block content %}
+<!-- Recording Controls -->
+<div class="card" id="recordingControls">
+    <div class="card-header">
+        <h3 style="margin: 0; display: flex; align-items: center;">
+            Recording Controls
+        </h3>
+    </div>
+    <div class="card-body">
+        <div id="noSessionControls" class="recording-controls">
+            <div style="margin-bottom: 15px;">
+                <label for="tutorialTitle" style="display: block; margin-bottom: 5px; font-weight: 500;">Tutorial Name:</label>
+                <input type="text" id="tutorialTitle" placeholder="Enter tutorial name..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+            <button onclick="createNewRecording()" class="btn btn-success" id="newRecordingBtn">
+                Create New Recording
+            </button>
+        </div>
+        
+        <div id="activeSessionControls" class="recording-controls" style="display: none;">
+            <div class="session-info" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <div><strong>Recording:</strong> <span id="currentTutorialTitle">-</span></div>
+                <div><strong>Status:</strong> <span id="currentStatus">-</span></div>
+                <div><strong>Steps:</strong> <span id="currentSteps">0</span></div>
+                <div><strong>Duration:</strong> <span id="currentDuration">0s</span></div>
+            </div>
+            
+            <div class="control-buttons">
+                <button onclick="startRecording()" class="btn btn-success" id="startBtn" style="display: none;">
+                    Start Recording
+                </button>
+                <button onclick="pauseRecording()" class="btn" id="pauseBtn" style="display: none; background: #fd7e14;">
+                    Pause
+                </button>
+                <button onclick="resumeRecording()" class="btn btn-success" id="resumeBtn" style="display: none;">
+                    Resume
+                </button>
+                <button onclick="stopRecording()" class="btn btn-danger" id="stopBtn" style="display: none;">
+                    Stop Recording
+                </button>
+            </div>
+        </div>
+        
+        <div class="status-text" id="statusMessage" style="margin-top: 10px; font-style: italic; color: #666;">
+            Ready to record
+        </div>
+    </div>
+</div>
+
+<h2>Your Tutorials</h2>
+
+{% if not tutorials %}
+<div class="card">
+    <div class="card-body">
+        <h3>No tutorials found</h3>
+        <p>You haven't created any tutorials yet. Use the TutorialMaker application to record your first tutorial!</p>
+        <p><strong>To get started:</strong></p>
+        <ol>
+            <li>Run the main application: <code>python3 main.py</code></li>
+            <li>Create a new tutorial: <code>new "My Tutorial"</code></li>
+            <li>Start recording: <code>start</code></li>
+            <li>Perform your actions</li>
+            <li>Stop recording: <code>stop</code></li>
+            <li>Return here to edit and export your tutorial!</li>
+        </ol>
+    </div>
+</div>
+{% else %}
+<div class="tutorial-grid">
+    {% for tutorial in tutorials %}
+    <div class="tutorial-card">
+        <div class="tutorial-card-body">
+            <h3 class="tutorial-title">
+                <span id="title-display-{{ tutorial.tutorial_id }}" onclick="editTutorialTitle('{{ tutorial.tutorial_id }}', '{{ tutorial.title|e }}')">{{ tutorial.title }}</span>
+                <input type="text" id="title-edit-{{ tutorial.tutorial_id }}" value="{{ tutorial.title|e }}" style="display: none; width: 100%; font-size: inherit; font-weight: inherit; padding: 2px; border: 1px solid #ddd; border-radius: 3px;" onblur="saveTutorialTitle('{{ tutorial.tutorial_id }}')" onkeypress="if(event.key==='Enter') saveTutorialTitle('{{ tutorial.tutorial_id }}')">
+            </h3>
+            <div class="tutorial-meta">
+                <div><strong>Steps:</strong> {{ tutorial.step_count }}</div>
+                <div><strong>Duration:</strong> {{ "%.1f"|format(tutorial.duration) }}s</div>
+                <div><strong>Status:</strong> 
+                    <span class="status-{{ tutorial.status }}">{{ tutorial.status.title() }}</span>
+                </div>
+                <div><strong>Created:</strong> {{ tutorial.created_at|timestamp_to_date }}</div>
+            </div>
+            
+            <!-- File location info -->
+            <div id="file-info-{{ tutorial.tutorial_id }}" class="file-locations" style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                Loading file info...
+            </div>
+            {% if tutorial.description %}
+            <p class="tutorial-description">{{ tutorial.description }}</p>
+            {% endif %}
+            <div class="tutorial-actions">
+                <a href="/tutorial/{{ tutorial.tutorial_id }}" class="btn">Edit Tutorial</a>
+                <div class="export-dropdown">
+                    <button class="btn btn-success dropdown-toggle" onclick="toggleExportMenu('{{ tutorial.tutorial_id }}')">
+                        Export ▼
+                    </button>
+                    <div id="export-menu-{{ tutorial.tutorial_id }}" class="export-menu" style="display: none;">
+                        <div class="export-format-selection">
+                            <div class="export-format-options">
+                                <label class="export-checkbox">
+                                    <input type="checkbox" id="export-html-{{ tutorial.tutorial_id }}" checked> HTML
+                                </label>
+                                <label class="export-checkbox">
+                                    <input type="checkbox" id="export-word-{{ tutorial.tutorial_id }}" checked> Word
+                                </label>
+                                <label class="export-checkbox">
+                                    <input type="checkbox" id="export-markdown-{{ tutorial.tutorial_id }}"> Markdown
+                                </label>
+                                <label class="export-checkbox">
+                                    <input type="checkbox" id="export-pdf-{{ tutorial.tutorial_id }}"> PDF
+                                </label>
+                            </div>
+                            <button onclick="exportSelectedFormats('{{ tutorial.tutorial_id }}')" class="export-action-btn">Export Selected</button>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="deleteTutorial('{{ tutorial.tutorial_id }}')" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card" style="margin-top: 30px;">
+    <div class="card-header">
+        Bulk Actions
+    </div>
+    <div class="card-body">
+        <p>Export all tutorials to selected formats:</p>
+        <div style="margin-bottom: 15px;">
+            <label><input type="checkbox" id="bulk-html" checked> HTML</label>
+            <label style="margin-left: 15px;"><input type="checkbox" id="bulk-word" checked> Word</label>
+            <label style="margin-left: 15px;"><input type="checkbox" id="bulk-markdown"> Markdown</label>
+            <label style="margin-left: 15px;"><input type="checkbox" id="bulk-pdf"> PDF</label>
+        </div>
+        <button onclick="exportAllTutorials()" class="btn btn-success">Export All Tutorials</button>
+        <button onclick="refreshTutorials()" class="btn btn-secondary">Refresh List</button>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block head %}
+<style>
+    .status-recording { color: #dc3545; font-weight: bold; }
+    .status-paused { color: #fd7e14; font-weight: bold; }
+    .status-completed { color: #28a745; font-weight: bold; }
+    
+    .tutorial-description {
+        color: #666;
+        font-style: italic;
+        margin-bottom: 15px;
+    }
+    
+    code {
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'Monaco', 'Consolas', monospace;
+        font-size: 0.9em;
+    }
+    
+    .tutorial-title span[id^="title-display-"] {
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 3px;
+        transition: background-color 0.2s;
+    }
+    
+    .tutorial-title span[id^="title-display-"]:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .tutorial-title span[id^="title-display-"]:hover::after {
+        content: " ✏️";
+        font-size: 0.8em;
+        opacity: 0.6;
+    }
+    
+    .export-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .export-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        z-index: 1000;
+        min-width: 150px;
+        /* Smart positioning to prevent overflow */
+        transform: translateX(-50%);
+        left: 50%;
+    }
+    
+    /* If menu would overflow right edge, align to right instead */
+    .tutorial-card:last-child .export-menu,
+    .tutorial-card:nth-last-child(2) .export-menu {
+        transform: translateX(-100%);
+        left: 100%;
+    }
+    
+    /* Ensure menu stays within viewport */
+    @media (max-width: 768px) {
+        .export-menu {
+            position: fixed;
+            top: auto;
+            bottom: 10px;
+            left: 10px !important;
+            right: 10px;
+            transform: none;
+            width: auto;
+            min-width: auto;
+        }
+    }
+    
+    .export-option {
+        display: block;
+        width: 100%;
+        padding: 8px 12px;
+        border: none;
+        background: none;
+        text-align: left;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .export-option:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .export-format-selection {
+        padding: 12px;
+    }
+    
+    .export-format-options {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .export-checkbox {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 4px 0;
+    }
+    
+    .export-checkbox input {
+        margin-right: 6px;
+        cursor: pointer;
+    }
+    
+    .export-action-btn {
+        width: 100%;
+        padding: 8px 12px;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.2s;
+    }
+    
+    .export-action-btn:hover {
+        background-color: #218838;
+    }
+    
+    .export-action-btn:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+    }
+    
+    .file-locations {
+        background: #f8f9fa;
+        padding: 8px;
+        border-radius: 4px;
+        border-left: 3px solid #007bff;
+    }
+    
+    .clickable-path {
+        cursor: pointer;
+        color: #007bff;
+        text-decoration: none;
+        padding: 2px 4px;
+        border-radius: 3px;
+        transition: background-color 0.2s;
+    }
+    
+    .clickable-path:hover {
+        background-color: #e3f2fd;
+        text-decoration: underline;
+    }
+    
+    .file-link a {
+        color: #28a745;
+        text-decoration: none;
+        margin-right: 10px;
+        cursor: pointer;
+    }
+    
+    .file-link a:hover {
+        text-decoration: underline;
+    }
+    
+    .file-missing {
+        color: #999;
+        margin-right: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+// Recording control functions
+async function createNewRecording() {
+    const titleInput = document.getElementById('tutorialTitle');
+    const title = titleInput.value.trim();
+    
+    if (!title) {
+        showAlert('Please enter a tutorial name', 'error');
+        return;
+    }
+    
+    try {
+        showAlert('Creating new recording session...', 'info');
+        
+        const response = await fetch('/api/recording/new', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                title: title,
+                description: ''
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('Recording session created successfully!', 'success');
+            titleInput.value = '';
+            updateRecordingUI();
+        } else {
+            showAlert('Failed to create recording: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Failed to create recording: ' + error.message, 'error');
+    }
+}
+
+async function startRecording() {
+    try {
+        showAlert('Starting recording...', 'info');
+        
+        const response = await fetch('/api/recording/start', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('Recording started! Perform your actions now.', 'success');
+            updateRecordingUI();
+        } else {
+            showAlert('Failed to start recording: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Failed to start recording: ' + error.message, 'error');
+    }
+}
+
+async function pauseRecording() {
+    try {
+        const response = await fetch('/api/recording/pause', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('Recording paused', 'info');
+            updateRecordingUI();
+        } else {
+            showAlert('Failed to pause recording: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Failed to pause recording: ' + error.message, 'error');
+    }
+}
+
+async function resumeRecording() {
+    try {
+        const response = await fetch('/api/recording/resume', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('Recording resumed', 'success');
+            updateRecordingUI();
+        } else {
+            showAlert('Failed to resume recording: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Failed to resume recording: ' + error.message, 'error');
+    }
+}
+
+async function stopRecording() {
+    if (!confirm('Are you sure you want to stop recording? This will finalize the tutorial.')) {
+        return;
+    }
+    
+    try {
+        showAlert('Stopping recording and exporting...', 'info');
+        
+        const response = await fetch('/api/recording/stop', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('Recording stopped and tutorial exported successfully!', 'success');
+            updateRecordingUI();
+            // Refresh the tutorials list after a moment
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showAlert('Failed to stop recording: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Failed to stop recording: ' + error.message, 'error');
+    }
+}
+
+// Update the recording UI based on current status
+async function updateRecordingUI() {
+    try {
+        const response = await fetch('/api/recording/status');
+        const status = await response.json();
+        
+        const noSessionControls = document.getElementById('noSessionControls');
+        const activeSessionControls = document.getElementById('activeSessionControls');
+        const statusMessage = document.getElementById('statusMessage');
+        
+        if (status.status === 'no_session') {
+            // Show new recording controls
+            noSessionControls.style.display = 'block';
+            activeSessionControls.style.display = 'none';
+            statusMessage.textContent = 'Ready to create a new recording';
+            return;
+        }
+        
+        // Show active session controls
+        noSessionControls.style.display = 'none';
+        activeSessionControls.style.display = 'block';
+        
+        // Update session info
+        document.getElementById('currentTutorialTitle').textContent = status.title || 'Untitled';
+        document.getElementById('currentStatus').textContent = status.status;
+        document.getElementById('currentSteps').textContent = status.step_count || 0;
+        document.getElementById('currentDuration').textContent = Math.round(status.duration || 0) + 's';
+        
+        // Show/hide appropriate buttons based on status
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        
+        // Hide all buttons first
+        [startBtn, pauseBtn, resumeBtn, stopBtn].forEach(btn => {
+            btn.style.display = 'none';
+        });
+        
+        if (status.status === 'stopped') {
+            startBtn.style.display = 'inline-block';
+            statusMessage.textContent = 'Ready to start recording';
+        } else if (status.status === 'recording') {
+            pauseBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'inline-block';
+            statusMessage.textContent = 'Recording in progress...';
+        } else if (status.status === 'paused') {
+            resumeBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'inline-block';
+            statusMessage.textContent = 'Recording paused';
+        }
+        
+    } catch (error) {
+        console.log('Recording status not available');
+        document.getElementById('noSessionControls').style.display = 'block';
+        document.getElementById('activeSessionControls').style.display = 'none';
+        document.getElementById('statusMessage').textContent = 'Recording controls not available';
+    }
+}
+
+// Initialize recording UI when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    updateRecordingUI();
+    // Update recording UI every 2 seconds
+    setInterval(updateRecordingUI, 2000);
+    
+    // Load file info for all tutorials
+    loadAllFileInfo();
+    
+    // Close export menus when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.export-dropdown')) {
+            document.querySelectorAll('.export-menu').forEach(menu => {
+                menu.style.display = 'none';
+            });
+        }
+    });
+});
+
+// Tutorial title editing functions
+function editTutorialTitle(tutorialId, currentTitle) {
+    const displaySpan = document.getElementById(`title-display-${tutorialId}`);
+    const editInput = document.getElementById(`title-edit-${tutorialId}`);
+    
+    displaySpan.style.display = 'none';
+    editInput.style.display = 'inline-block';
+    editInput.focus();
+    editInput.select();
+}
+
+async function saveTutorialTitle(tutorialId) {
+    const displaySpan = document.getElementById(`title-display-${tutorialId}`);
+    const editInput = document.getElementById(`title-edit-${tutorialId}`);
+    const newTitle = editInput.value.trim();
+    
+    if (!newTitle) {
+        showAlert('Tutorial name cannot be empty', 'error');
+        editInput.focus();
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/tutorial/${tutorialId}/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                metadata: {
+                    title: newTitle
+                }
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displaySpan.textContent = newTitle;
+            displaySpan.style.display = 'inline';
+            editInput.style.display = 'none';
+            showAlert('Tutorial renamed successfully', 'success');
+        } else {
+            showAlert('Failed to rename tutorial: ' + (result.error || 'Unknown error'), 'error');
+            editInput.focus();
+        }
+    } catch (error) {
+        showAlert('Failed to rename tutorial: ' + error.message, 'error');
+        editInput.focus();
+    }
+}
+
+// Load file info for all tutorials
+async function loadAllFileInfo() {
+    const tutorialCards = document.querySelectorAll('.tutorial-card');
+    
+    for (const card of tutorialCards) {
+        const editLink = card.querySelector('a[href^="/tutorial/"]');
+        if (editLink) {
+            const tutorialId = editLink.href.split('/').pop();
+            await loadTutorialFileInfo(tutorialId);
+        }
+    }
+}
+
+async function loadTutorialFileInfo(tutorialId) {
+    try {
+        const response = await fetch(`/api/tutorial/${tutorialId}/files`);
+        const fileInfo = await response.json();
+        
+        const fileInfoDiv = document.getElementById(`file-info-${tutorialId}`);
+        if (!fileInfoDiv) return;
+        
+        if (!fileInfo.exists) {
+            fileInfoDiv.innerHTML = '<span class="text-muted">No files found</span>';
+            return;
+        }
+        
+        let html = `
+            <div><strong>📁 Location:</strong> 
+                <code class="clickable-path" onclick="openFileLocation('${tutorialId}', 'project')" 
+                      title="Click to open in file manager">
+                    ${fileInfo.project_path_display}
+                </code>
+            </div>
+        `;
+        
+        if (fileInfo.files && Object.keys(fileInfo.files).length > 0) {
+            html += '<div style="margin-top: 5px;"><strong>📄 Exports:</strong> ';
+            
+            const exportedFiles = [];
+            for (const [format, data] of Object.entries(fileInfo.files)) {
+                if (data.exists) {
+                    const sizeInfo = data.size_mb > 0 ? ` (${data.size_mb.toFixed(1)}MB)` : '';
+                    exportedFiles.push(`<a href="#" onclick="openFileLocation('${tutorialId}', '${format}')" title="Click to open file location" style="color: #28a745; text-decoration: none;">${format.toUpperCase()}${sizeInfo}</a>`);
+                }
+            }
+            
+            if (exportedFiles.length > 0) {
+                html += exportedFiles.join(', ');
+            } else {
+                html += '<span style="color: #999;">None exported yet</span>';
+            }
+            html += '</div>';
+        }
+        
+        if (fileInfo.screenshot_count > 0) {
+            html += `<div style="margin-top: 3px;"><small style="color: #666;">📷 ${fileInfo.screenshot_count} screenshots</small></div>`;
+        }
+        
+        fileInfoDiv.innerHTML = html;
+    } catch (error) {
+        console.log(`Failed to load file info for ${tutorialId}:`, error);
+        const fileInfoDiv = document.getElementById(`file-info-${tutorialId}`);
+        if (fileInfoDiv) {
+            fileInfoDiv.innerHTML = '<span class="text-muted">File info unavailable</span>';
+        }
+    }
+}
+
+// Export dropdown functions
+function toggleExportMenu(tutorialId) {
+    const menu = document.getElementById(`export-menu-${tutorialId}`);
+    const button = menu.previousElementSibling; // The dropdown button
+    const isVisible = menu.style.display === 'block';
+    
+    // Close all other menus first
+    document.querySelectorAll('.export-menu').forEach(m => {
+        m.style.display = 'none';
+    });
+    
+    if (isVisible) {
+        menu.style.display = 'none';
+        return;
+    }
+    
+    // Show the menu
+    menu.style.display = 'block';
+    
+    // Always position above the button
+    const viewportWidth = window.innerWidth;
+    
+    // Position above button with centered alignment
+    menu.style.transform = 'translateX(-50%)';
+    menu.style.left = '50%';
+    menu.style.top = 'auto';
+    menu.style.bottom = '100%';
+    
+    // Force reflow to get accurate measurements
+    menu.offsetHeight;
+    
+    // Get current position after positioning above
+    let rect = menu.getBoundingClientRect();
+    
+    // Check if menu overflows right edge
+    if (rect.right > viewportWidth - 20) {
+        menu.style.transform = 'translateX(-100%)';
+        menu.style.left = '100%';
+        menu.offsetHeight; // Force reflow
+        rect = menu.getBoundingClientRect(); // Recalculate
+    }
+    
+    // Check if menu overflows left edge  
+    if (rect.left < 20) {
+        menu.style.transform = 'translateX(0)';
+        menu.style.left = '0';
+    }
+}
+
+// Utility function to disable/enable buttons during operations
+function setButtonsDisabled(tutorialId, disabled) {
+    // Export button
+    const exportButton = document.querySelector(`[onclick*="toggleExportMenu('${tutorialId}')"]`);
+    if (exportButton) exportButton.disabled = disabled;
+    
+    // Delete button
+    const deleteButton = document.querySelector(`[onclick*="deleteTutorial('${tutorialId}')"]`);
+    if (deleteButton) deleteButton.disabled = disabled;
+    
+    // Export action button
+    const exportActionButton = document.querySelector(`[onclick*="exportSelectedFormats('${tutorialId}')"]`);
+    if (exportActionButton) {
+        exportActionButton.disabled = disabled;
+        exportActionButton.textContent = disabled ? 'Exporting...' : 'Export Selected';
+    }
+    
+    // Edit tutorial button
+    const editButton = document.querySelector(`a[href="/tutorial/${tutorialId}"]`);
+    if (editButton) {
+        editButton.style.pointerEvents = disabled ? 'none' : 'auto';
+        editButton.style.opacity = disabled ? '0.6' : '1';
+    }
+}
+
+async function exportSelectedFormats(tutorialId) {
+    // Get selected formats
+    const formats = [];
+    if (document.getElementById(`export-html-${tutorialId}`).checked) formats.push('html');
+    if (document.getElementById(`export-word-${tutorialId}`).checked) formats.push('word');
+    if (document.getElementById(`export-markdown-${tutorialId}`).checked) formats.push('markdown');
+    if (document.getElementById(`export-pdf-${tutorialId}`).checked) formats.push('pdf');
+    
+    if (formats.length === 0) {
+        showAlert('Please select at least one export format', 'error');
+        return;
+    }
+    
+    // Disable buttons during export
+    setButtonsDisabled(tutorialId, true);
+    
+    try {
+        // Use the existing export function
+        await exportTutorialFormat(tutorialId, formats);
+    } finally {
+        // Re-enable buttons after export completes or fails
+        setButtonsDisabled(tutorialId, false);
+    }
+}
+
+async function exportTutorialFormat(tutorialId, formats) {
+    // Close the menu
+    document.getElementById(`export-menu-${tutorialId}`).style.display = 'none';
+    
+    try {
+        showAlert(`Exporting to ${formats.join(', ').toUpperCase()}...`, 'info');
+        
+        const response = await fetch(`/api/tutorial/${tutorialId}/export`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ formats })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert(`Tutorial exported to ${formats.join(', ').toUpperCase()} successfully!`, 'success');
+            
+            // Refresh file info to show new exports
+            await loadTutorialFileInfo(tutorialId);
+            
+            // Show results
+            let successMessage = 'Export completed:\\n';
+            for (const [format, path] of Object.entries(result.results)) {
+                if (path.startsWith('Error:')) {
+                    successMessage += `• ${format.toUpperCase()}: ${path}\\n`;
+                } else {
+                    const filename = path.split('/').pop();
+                    successMessage += `• ${format.toUpperCase()}: ${filename}\\n`;
+                }
+            }
+            
+            console.log('Export results:', result.results);
+        } else {
+            showAlert('Export failed: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Export failed: ' + error.message, 'error');
+    }
+}
+
+async function openFileLocation(tutorialId, fileType) {
+    try {
+        const response = await fetch(`/api/tutorial/${tutorialId}/open_location`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ file_type: fileType })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert(`Opening ${fileType} location...`, 'success');
+        } else {
+            showAlert(result.message || 'Failed to open file location', 'error');
+        }
+    } catch (error) {
+        showAlert('Failed to open file location: ' + error.message, 'error');
+    }
+}
+
+async function deleteTutorial(tutorialId) {
+    if (!confirm('Are you sure you want to delete this tutorial? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/tutorial/${tutorialId}/delete`, {
+            method: 'POST',
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('Tutorial deleted successfully', 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showAlert('Failed to delete tutorial: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Delete failed: ' + error.message, 'error');
+    }
+}
+
+// Utility function to disable/enable bulk action buttons
+function setBulkButtonsDisabled(disabled) {
+    const exportAllButton = document.querySelector('[onclick*="exportAllTutorials()"]');
+    const refreshButton = document.querySelector('[onclick*="refreshTutorials()"]');
+    
+    if (exportAllButton) {
+        exportAllButton.disabled = disabled;
+        exportAllButton.textContent = disabled ? 'Exporting All...' : 'Export All Tutorials';
+    }
+    
+    if (refreshButton) {
+        refreshButton.disabled = disabled;
+    }
+    
+    // Also disable individual tutorial buttons during bulk operations
+    const allExportButtons = document.querySelectorAll('[onclick*="toggleExportMenu"]');
+    const allDeleteButtons = document.querySelectorAll('[onclick*="deleteTutorial"]');
+    
+    allExportButtons.forEach(btn => btn.disabled = disabled);
+    allDeleteButtons.forEach(btn => btn.disabled = disabled);
+}
+
+async function exportAllTutorials() {
+    // Get selected formats
+    const formats = [];
+    if (document.getElementById('bulk-html').checked) formats.push('html');
+    if (document.getElementById('bulk-word').checked) formats.push('word'); 
+    if (document.getElementById('bulk-markdown').checked) formats.push('markdown');
+    if (document.getElementById('bulk-pdf').checked) formats.push('pdf');
+    
+    if (formats.length === 0) {
+        showAlert('Please select at least one export format', 'error');
+        return;
+    }
+    
+    const formatList = formats.join(', ').toUpperCase();
+    if (!confirm(`This will export all tutorials to ${formatList} formats. Continue?`)) {
+        return;
+    }
+    
+    // Disable all buttons during bulk export
+    setBulkButtonsDisabled(true);
+    
+    showAlert(`Exporting all tutorials to ${formatList}... This may take a while.`, 'info');
+    
+    try {
+        const tutorialCards = document.querySelectorAll('.tutorial-card');
+        const tutorialIds = Array.from(tutorialCards).map(card => {
+            const editLink = card.querySelector('a[href^="/tutorial/"]');
+            return editLink.href.split('/').pop();
+        });
+        
+        let successCount = 0;
+        let failedCount = 0;
+        
+        for (const tutorialId of tutorialIds) {
+            try {
+                await exportTutorialFormat(tutorialId, formats);
+                successCount++;
+            } catch (error) {
+                console.error(`Failed to export ${tutorialId}:`, error);
+                failedCount++;
+            }
+            
+            // Brief pause between exports to avoid overwhelming the system
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        const resultMessage = `Bulk export completed: ${successCount} successful, ${failedCount} failed`;
+        showAlert(resultMessage, failedCount === 0 ? 'success' : 'info');
+        
+        // Refresh all file info
+        await loadAllFileInfo();
+        
+    } catch (error) {
+        showAlert('Bulk export failed: ' + error.message, 'error');
+    } finally {
+        // Re-enable all buttons after bulk export completes or fails
+        setBulkButtonsDisabled(false);
+    }
+}
+
+function refreshTutorials() {
+    window.location.reload();
+}
+{% endblock %}

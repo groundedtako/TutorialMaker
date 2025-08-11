@@ -37,6 +37,14 @@ except (ImportError, ValueError, Exception):
     CV2_AVAILABLE = False
     print("Warning: cv2 not available. Advanced image processing disabled.")
 
+# Initialize Tesseract environment with bundled binary
+try:
+    from ..utils.tesseract_bundle import setup_tesseract_environment, verify_tesseract_installation
+    setup_tesseract_environment()
+    TESSERACT_BUNDLED = verify_tesseract_installation()
+except ImportError:
+    TESSERACT_BUNDLED = False
+
 # OCR engines
 try:
     import pytesseract

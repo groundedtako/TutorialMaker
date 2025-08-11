@@ -239,8 +239,20 @@ class TutorialStorage:
             return None
         
         try:
+            # Get tutorial metadata for naming
+            metadata = self.load_tutorial_metadata(tutorial_id)
+            tutorial_name = "untitled"
+            if metadata and metadata.title:
+                # Sanitize title for filename
+                tutorial_name = "".join(c for c in metadata.title.lower() if c.isalnum() or c in (' ', '-', '_')).strip()
+                tutorial_name = tutorial_name.replace(' ', '_')
+                if len(tutorial_name) > 20:
+                    tutorial_name = tutorial_name[:20]
+            
             screenshots_dir = project_path / "screenshots"
-            screenshot_filename = f"step_{step_number:03d}.png"
+            # Include tutorial name and hash in filename: tutorialname_abcd1234_step_001.png
+            tutorial_hash = tutorial_id.replace('-', '')[:8]  # First 8 chars without hyphens
+            screenshot_filename = f"{tutorial_name}_{tutorial_hash}_step_{step_number:03d}.png"
             screenshot_path = screenshots_dir / screenshot_filename
             
             # Save image

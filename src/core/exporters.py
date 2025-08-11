@@ -298,8 +298,9 @@ class HTMLExporter:
         <h3>Standalone Tutorial</h3>
         <p style="color: #666; margin: 0;">This is an exported tutorial file. To edit or re-export, use the TutorialMaker web interface.</p>
         <p style="color: #666; margin: 5px 0 0 0; font-size: 0.9em;">
-            <strong>💡 Tip:</strong> Run <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">python3 start_web_server.py</code> 
-            to access the full editing interface.
+            <strong>💡 Tip:</strong> To edit this tutorial:<br>
+            • <strong>Development:</strong> Run <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">python main.py</code><br>
+            • <strong>Production:</strong> Run <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">./tutorialmaker</code> executable
         </p>
     </div>
 
@@ -323,7 +324,7 @@ class HTMLExporter:
                 if (e.target.classList.contains('step-description') || e.target.closest('.delete-step')) {{
                     e.preventDefault();
                     if (confirm('This is a standalone exported file. Would you like instructions on how to edit tutorials?')) {{
-                        alert('To edit tutorials:\\n\\n1. Run: python3 start_web_server.py\\n2. Open http://localhost:5001 in your browser\\n3. Click "Edit Tutorial" for any tutorial');
+                        alert('To edit tutorials:\\n\\nDevelopment:\\n1. Run: python main.py\\n2. Browser opens automatically\\n\\nProduction:\\n1. Run: ./tutorialmaker executable\\n2. Browser opens automatically');
                     }}
                 }}
             }});
@@ -678,13 +679,20 @@ class MarkdownExporter:
             
             # Add screenshot as image reference
             if step.screenshot_path:
-                screenshot_full_path = project_path / step.screenshot_path
-                if screenshot_full_path.exists():
-                    # Use relative path from output directory
+                # Handle both full paths and just filenames
+                if "/" in step.screenshot_path:
+                    # Full path like "screenshots/step_001.png"
                     relative_screenshot_path = f"../{step.screenshot_path}"
+                else:
+                    # Just filename like "step_001.png"
+                    relative_screenshot_path = f"../screenshots/{step.screenshot_path}"
+                
+                # Check if file exists
+                screenshot_full_path = project_path / "screenshots" / (step.screenshot_path.split("/")[-1] if "/" in step.screenshot_path else step.screenshot_path)
+                if screenshot_full_path.exists():
                     lines.append(f"![Step {i} Screenshot]({relative_screenshot_path})")
                     lines.append("")
-                    lines.append(f"*Screenshot: {step.screenshot_path}*")
+                    lines.append(f"*Screenshot: {relative_screenshot_path}*")
                     lines.append("")
             
             # Add keyboard input if available

@@ -30,7 +30,7 @@ A privacy-focused, local-only screen recording tool for creating step-by-step tu
 1. **Clone the repository:**
    ```bash
    git clone <repository-url>
-   cd scribe_local
+   cd tutorialmaker
    ```
 
 2. **Install dependencies:**

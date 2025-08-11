@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Tutorial Not Found - TutorialMaker{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h2>Tutorial Not Found</h2>
+        <p>The tutorial you're looking for doesn't exist or has been deleted.</p>
+        <p><strong>Tutorial ID:</strong> {{ tutorial_id }}</p>
+        
+        <div style="margin-top: 20px;">
+            <a href="/" class="btn btn-primary">← Back to Home</a>
+            <button onclick="window.history.back()" class="btn btn-secondary">Go Back</button>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        Possible Solutions
+    </div>
+    <div class="card-body">
+        <ul>
+            <li>Check if the tutorial ID is correct</li>
+            <li>The tutorial may have been deleted</li>
+            <li>Try refreshing the tutorials list from the home page</li>
+            <li>Create a new tutorial if needed</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

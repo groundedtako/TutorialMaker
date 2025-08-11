@@ -1,0 +1,309 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PYTHON_VERSION: '3.9'
+  NODE_VERSION: '18'
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tesseract-ocr libtesseract-dev
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v --cov=src --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  build:
+    name: Build ${{ matrix.os }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: tutorialmaker-linux
+            asset_name: tutorialmaker-linux-amd64
+          - os: windows-latest
+            artifact_name: tutorialmaker-windows
+            asset_name: tutorialmaker-windows-amd64.exe
+          - os: macos-latest
+            artifact_name: tutorialmaker-macos
+            asset_name: tutorialmaker-macos-amd64
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for changelog generation
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tesseract-ocr libtesseract-dev
+        
+        # Create tesseract bundle directory for PyInstaller
+        mkdir -p tesseract_bundle
+        cp -r /usr/share/tesseract-ocr tesseract_bundle/ || true
+        mkdir -p tesseract_bundle/bin
+        cp /usr/bin/tesseract tesseract_bundle/bin/
+    
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install tesseract
+        
+        # Create tesseract bundle directory for PyInstaller
+        mkdir -p tesseract_bundle
+        cp -r $(brew --prefix tesseract)/* tesseract_bundle/ || true
+        # Copy tesseract binary specifically
+        mkdir -p tesseract_bundle/bin
+        cp $(which tesseract) tesseract_bundle/bin/
+    
+    - name: Install system dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # Download and install Tesseract
+        curl -L -o tesseract-installer.exe "https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.3.20231005/tesseract-ocr-w64-setup-5.3.3.20231005.exe"
+        Start-Process -Wait -FilePath "tesseract-installer.exe" -ArgumentList "/S"
+        echo "C:\Program Files\Tesseract-OCR" >> $env:GITHUB_PATH
+        
+        # Create tesseract bundle directory for PyInstaller
+        mkdir tesseract_bundle
+        Copy-Item -Recurse "C:\Program Files\Tesseract-OCR\*" tesseract_bundle\
+      shell: powershell
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Create platform-specific spec file
+      run: |
+        # Copy base spec file and modify for platform
+        cp tutorialmaker.spec platform.spec
+        
+        # Update executable name in spec file for this platform
+        python -c "
+        import sys
+        with open('platform.spec', 'r') as f:
+            content = f.read()
+        
+        if sys.platform == 'win32':
+            exe_name = 'tutorialmaker-windows.exe'
+        elif sys.platform == 'darwin':
+            exe_name = 'tutorialmaker-macos'
+        else:
+            exe_name = 'tutorialmaker-linux'
+            
+        # Replace the exe_name line
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if 'exe_name = ' in line and 'tutorialmaker-' in line:
+                lines[i] = f\"    exe_name = '{exe_name}'\"
+                break
+        
+        with open('platform.spec', 'w') as f:
+            f.write('\n'.join(lines))
+        "
+    
+    - name: Build with PyInstaller using spec file
+      run: |
+        # Install additional build dependencies
+        pip install pyinstaller-hooks-contrib
+        
+        # Build using our comprehensive spec file
+        pyinstaller platform.spec --clean --noconfirm
+        
+        # Verify the build
+        ls -la dist/
+    
+    - name: Create distribution package (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd dist
+        tar -czf "${{ matrix.asset_name }}.tar.gz" "${{ matrix.artifact_name }}"
+        ls -la
+    
+    - name: Create distribution package (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cd dist
+        Compress-Archive -Path "${{ matrix.artifact_name }}" -DestinationPath "${{ matrix.asset_name }}.zip"
+        Get-ChildItem
+      shell: powershell
+    
+    - name: Upload build artifacts (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.asset_name }}
+        path: dist/${{ matrix.asset_name }}.tar.gz
+    
+    - name: Upload build artifacts (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.asset_name }}
+        path: dist/${{ matrix.asset_name }}.zip
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get the previous tag
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+        CURRENT_TAG=${GITHUB_REF#refs/tags/}
+        
+        echo "Generating changelog from $PREV_TAG to $CURRENT_TAG"
+        
+        # Generate changelog
+        if [ -z "$PREV_TAG" ]; then
+          CHANGELOG=$(git log --pretty=format:"* %s (%h)" --reverse)
+        else
+          CHANGELOG=$(git log --pretty=format:"* %s (%h)" --reverse $PREV_TAG..HEAD)
+        fi
+        
+        # Create release notes
+        cat > release_notes.md << EOF
+        # Release $CURRENT_TAG
+        
+        ## Changes
+        $CHANGELOG
+        
+        ## Installation
+        
+        ### Windows
+        1. Download \`tutorialmaker-windows-amd64.zip\`
+        2. Extract the archive
+        3. Install Tesseract OCR from [UB-Mannheim](https://github.com/UB-Mannheim/tesseract/wiki)
+        4. Run \`tutorialmaker-windows.exe\`
+        
+        ### macOS
+        1. Download \`tutorialmaker-macos-amd64.tar.gz\`
+        2. Extract: \`tar -xzf tutorialmaker-macos-amd64.tar.gz\`
+        3. Install Tesseract: \`brew install tesseract\`
+        4. Run: \`./tutorialmaker-macos/tutorialmaker-macos\`
+        
+        ### Linux
+        1. Download \`tutorialmaker-linux-amd64.tar.gz\`
+        2. Extract: \`tar -xzf tutorialmaker-linux-amd64.tar.gz\`
+        3. Install Tesseract: \`sudo apt-get install tesseract-ocr\`
+        4. Run: \`./tutorialmaker-linux/tutorialmaker-linux\`
+        
+        ## System Requirements
+        - Tesseract OCR engine (required for text recognition)
+        - Python 3.9+ (bundled in executable releases)
+        - 4GB RAM minimum, 8GB recommended
+        - Screen recording permissions (macOS/Windows)
+        EOF
+        
+        echo "CHANGELOG_PATH=release_notes.md" >> $GITHUB_OUTPUT
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Display structure
+      run: |
+        ls -la
+        find . -name "*.tar.gz" -o -name "*.zip"
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: release_notes.md
+        files: |
+          */tutorialmaker-linux-amd64.tar.gz
+          */tutorialmaker-windows-amd64.zip
+          */tutorialmaker-macos-amd64.tar.gz
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

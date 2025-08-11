@@ -1,4 +1,4 @@
-# Scribe Local - Screen Recording Tutorial Maker
+# TutorialMaker - Screen Recording Tutorial Maker
 
 ## CRITICAL DEVELOPMENT GUIDELINES
 
@@ -22,7 +22,7 @@ Use: "SUCCESS:" "ERROR:" "INFO:" "->" "<-" "*" "-" "+" "|"
 ```
 
 ## Project Overview
-A privacy-focused, local-only screen recording tool that captures user interactions (mouse clicks, keystrokes) and generates shareable tutorials. Inspired by the original Scribe tool, but runs entirely locally without requiring admin privileges or cloud connectivity.
+A privacy-focused, local-only screen recording tool that captures user interactions (mouse clicks, keystrokes) and generates shareable tutorials. Runs entirely locally without requiring admin privileges or cloud connectivity.
 
 ## Core Features
 
@@ -137,7 +137,7 @@ A privacy-focused, local-only screen recording tool that captures user interacti
 
 ### Phase 5: Post-Capture Editing
 - [ ] Web-based tutorial editor
-- [ ] Click-to-delete steps (Scribe-like)
+- [ ] Click-to-delete steps (intuitive interface)
 - [ ] Step description editing
 - [ ] Step reordering (drag-and-drop)
 - [ ] Tutorial history browser
@@ -161,7 +161,7 @@ A privacy-focused, local-only screen recording tool that captures user interacti
 - **Universal Compatibility**: Works with any application
 - **Minimal Interruption**: Background monitoring with optional hotkeys
 - **Immediate Feedback**: Real-time step generation and preview
-- **Familiar Interface**: Scribe-like editing experience
+- **Familiar Interface**: Intuitive tutorial editing experience
 
 ### Technical Choices
 - **Permission-Friendly**: Multiple fallback modes for different security contexts
@@ -210,4 +210,4 @@ A privacy-focused, local-only screen recording tool that captures user interacti
 
 ---
 
-*This document serves as the living specification and progress tracker for the Scribe Local project.*
+*This document serves as the living specification and progress tracker for the TutorialMaker project.*

@@ -71,6 +71,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         release-type: python
         package-name: tutorialmaker
+        skip-github-pull-request: true
     
     - name: Create GitHub Release
       uses: actions/create-release@v1

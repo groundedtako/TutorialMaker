@@ -5,6 +5,11 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 env:
   PYTHON_VERSION: '3.9'
 
@@ -39,9 +44,9 @@ jobs:
     
     - name: Test imports
       run: |
-        python -c "from src.core.app import TutorialMakerApp; print('✅ Core imports successful')"
-        python -c "from src.core.storage import TutorialStorage; print('✅ Storage imports successful')"
-        python -c "from src.core.exporters import TutorialExporter; print('✅ Export imports successful')"
+        python -c "from src.core.app import TutorialMakerApp; print(' Core imports successful')"
+        python -c "from src.core.storage import TutorialStorage; print(' Storage imports successful')"
+        python -c "from src.core.exporters import TutorialExporter; print(' Export imports successful')"
 
   release:
     name: Create Release
@@ -59,13 +64,20 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Release Please
-      uses: google-github-actions/release-please-action@v4
+      uses: release-please/action@v2
       id: release
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        release-type: python
-        package-name: tutorialmaker
-        changelog-types: '[{"type":"feat","section":"🚀 Features","hidden":false},{"type":"fix","section":"🐛 Bug Fixes","hidden":false},{"type":"perf","section":"⚡ Performance","hidden":false},{"type":"docs","section":"📚 Documentation","hidden":false},{"type":"refactor","section":"♻️ Refactoring","hidden":false},{"type":"chore","section":"🧹 Maintenance","hidden":true}]'
+    
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.release.outputs.tag_name }}
+        release_name: ${{ steps.release.outputs.release_name }}
+        draft: false
+        prerelease: false
 
   build:
     name: Build Executables

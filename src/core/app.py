@@ -267,22 +267,116 @@ class TutorialMakerApp:
             screen_width = screen_info['width']
             screen_height = screen_info['height']
             
-            # Calculate percentage coordinates
-            x_pct = event.x / screen_width
-            y_pct = event.y / screen_height
-            
-            # Capture screenshot immediately
-            screenshot = self.screen_capture.capture_full_screen()
+            # Capture screenshot from the monitor where the click occurred
+            screenshot = self.screen_capture.capture_full_screen(click_point=(event.x, event.y))
             if not screenshot:
                 print("Failed to capture screenshot")
                 return
             
-            # Convert click coordinates to screenshot pixel coordinates
-            screenshot_click_x = int(x_pct * screenshot.size[0])
-            screenshot_click_y = int(y_pct * screenshot.size[1])
+            # Adjust click coordinates to be relative to the captured monitor
+            monitor_relative_x, monitor_relative_y = self.screen_capture.adjust_coordinates_to_monitor(event.x, event.y)
+            
+            # Calculate percentage coordinates relative to the captured monitor (not total screen space)
+            monitor_info = self.screen_capture.get_last_monitor_info()
+            if monitor_info:
+                # Percentage within the specific monitor that was captured
+                x_pct = monitor_relative_x / monitor_info['width']
+                y_pct = monitor_relative_y / monitor_info['height']
+            else:
+                # Fallback to total screen space if monitor info unavailable
+                x_pct = event.x / screen_width
+                y_pct = event.y / screen_height
+            
+            # Convert adjusted coordinates to screenshot pixel coordinates if needed
+            screenshot_click_x = monitor_relative_x
+            screenshot_click_y = monitor_relative_y
             
             # Use smart OCR processing for better accuracy
             ocr_result = self.smart_ocr.process_click_region(screenshot, screenshot_click_x, screenshot_click_y, self.debug_mode)
+            
+            # Debug: Save the cropped click region to see what we're capturing
+            if self.debug_mode:
+                try:
+                    from pathlib import Path
+                    debug_dir = Path(f"debug_clicks_{self.current_session.tutorial_id}")
+                    debug_dir.mkdir(exist_ok=True)
+                    
+                    # Save the cropped region around the click
+                    crop_size = 200
+                    half_size = crop_size // 2
+                    x1 = max(0, screenshot_click_x - half_size)
+                    y1 = max(0, screenshot_click_y - half_size)
+                    x2 = min(screenshot.size[0], screenshot_click_x + half_size)
+                    y2 = min(screenshot.size[1], screenshot_click_y + half_size)
+                    
+                    cropped = screenshot.crop((x1, y1, x2, y2))
+                    
+                    # Add a red dot to show where we think the click is within the crop
+                    from PIL import ImageDraw
+                    draw = ImageDraw.Draw(cropped)
+                    crop_click_x = screenshot_click_x - x1
+                    crop_click_y = screenshot_click_y - y1
+                    draw.ellipse([crop_click_x-5, crop_click_y-5, crop_click_x+5, crop_click_y+5], 
+                               fill="red", outline="darkred", width=2)
+                    
+                    debug_file = debug_dir / f"step_{step_number}_click_region.png"
+                    cropped.save(debug_file)
+                    
+                    # Also save a version with the "raw" coordinates for comparison
+                    raw_screenshot_x = int((event.x / screen_info['width']) * screenshot.size[0])
+                    raw_screenshot_y = int((event.y / screen_info['height']) * screenshot.size[1])
+                    
+                    raw_x1 = max(0, raw_screenshot_x - half_size)
+                    raw_y1 = max(0, raw_screenshot_y - half_size)
+                    raw_x2 = min(screenshot.size[0], raw_screenshot_x + half_size)
+                    raw_y2 = min(screenshot.size[1], raw_screenshot_y + half_size)
+                    
+                    raw_cropped = screenshot.crop((raw_x1, raw_y1, raw_x2, raw_y2))
+                    raw_draw = ImageDraw.Draw(raw_cropped)
+                    raw_crop_click_x = raw_screenshot_x - raw_x1
+                    raw_crop_click_y = raw_screenshot_y - raw_y1
+                    raw_draw.ellipse([raw_crop_click_x-5, raw_crop_click_y-5, raw_crop_click_x+5, raw_crop_click_y+5], 
+                                   fill="blue", outline="darkblue", width=2)
+                    
+                    raw_debug_file = debug_dir / f"step_{step_number}_click_region_RAW.png"
+                    raw_cropped.save(raw_debug_file)
+                    
+                    monitor_info = self.screen_capture.get_last_monitor_info()
+                    screen_info = self.screen_capture.get_screen_info()
+                    
+                    print(f"DEBUG: Saved click region to {debug_file}")
+                    print(f"DEBUG: Saved RAW comparison to {raw_debug_file}")
+                    print(f"DEBUG: Global click: ({event.x}, {event.y})")
+                    print(f"DEBUG: Screen dimensions: {screen_info['width']}x{screen_info['height']}")
+                    print(f"DEBUG: Monitor relative: ({monitor_relative_x}, {monitor_relative_y})")
+                    print(f"DEBUG: Monitor info: {monitor_info}")
+                    print(f"DEBUG: Screenshot size: {screenshot.size}")
+                    print(f"DEBUG: ADJUSTED crop region: ({x1}, {y1}) to ({x2}, {y2})")
+                    print(f"DEBUG: RAW crop region: ({raw_x1}, {raw_y1}) to ({raw_x2}, {raw_y2})")
+                    
+                    # Show all monitor details for debugging
+                    if 'monitors' in screen_info:
+                        print(f"DEBUG: All monitors ({len(screen_info['monitors'])} total):")
+                        for mon in screen_info['monitors']:
+                            aspect = mon.get('aspect_ratio', 'unknown')
+                            orientation = "Portrait" if mon.get('is_portrait', False) else "Landscape"
+                            print(f"  Monitor {mon['id']}: {mon['width']}x{mon['height']} at ({mon['left']}, {mon['top']}) - {orientation} (AR: {aspect})")
+                    
+                    # Show which monitor was actually captured
+                    captured_monitor_id = monitor_info.get('id', 'unknown') if monitor_info else 'unknown'
+                    print(f"DEBUG: Captured from Monitor {captured_monitor_id}")
+                    
+                    # Calculate what the coordinates should be if we didn't apply any offset
+                    raw_pct_x = event.x / screen_info['width']
+                    raw_pct_y = event.y / screen_info['height']
+                    raw_screenshot_x = int(raw_pct_x * screenshot.size[0])
+                    raw_screenshot_y = int(raw_pct_y * screenshot.size[1])
+                    print(f"DEBUG: Raw percentage coords: ({raw_pct_x:.3f}, {raw_pct_y:.3f})")
+                    print(f"DEBUG: Raw screenshot coords (no offset): ({raw_screenshot_x}, {raw_screenshot_y})")
+                    print(f"DEBUG: Adjusted screenshot coords (with offset): ({screenshot_click_x}, {screenshot_click_y})")
+                    
+                except Exception as e:
+                    print(f"DEBUG: Error saving debug image: {e}")
             
             # Add debug marker to screenshot if in debug mode using percentage coordinates
             if self.debug_mode:
@@ -364,8 +458,8 @@ class TutorialMakerApp:
             
             # Create tutorial step for significant keyboard events
             if event.is_special or event.event_type == EventType.TEXT_INPUT:
-                # Take screenshot for special keys and text input sessions
-                screenshot = self.screen_capture.capture_full_screen()
+                # Take screenshot for special keys and text input sessions (use primary monitor)
+                screenshot = self.screen_capture.capture_full_screen(monitor_id=1)
                 
                 self.current_session.step_counter += 1
                 step_number = self.current_session.step_counter

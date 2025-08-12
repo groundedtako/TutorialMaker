@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where python)",
+      "Bash(python:*)",
+      "Bash(venvScripts:*)",
+      "Bash(pip install:*)",
+      "Bash(call venvScriptsactivate)",
+      "Bash(\"venv/Scripts/pip.exe\" install -r requirements.txt)",
+      "Bash(\"venv/Scripts/python.exe\" test_capture_fixes.py)",
+      "Bash(rm:*)",
+      "Bash(\"venv/Scripts/python.exe\" -m py_compile src/core/capture.py)",
+      "Bash(\"venv/Scripts/python.exe\" --version)",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.capture import ScreenCapture; print(''Syntax OK'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; print(''App import OK'')\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

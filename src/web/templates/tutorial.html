@@ -214,13 +214,20 @@
         border-radius: 50%;
         background: rgba(59, 130, 246, 0.3);
         border: 2px solid rgba(59, 130, 246, 0.7);
-        opacity: 0;
-        animation: clickPulse 2s ease-out infinite;
+        opacity: 0.5;
+        transform: scale(1);
+        transition: all 0.3s ease;
     }
     
     /* Animation that triggers when step comes into view */
     .step-visible .click-circle {
-        animation: clickContract 1.5s ease-out;
+        animation: clickContract 1.5s ease-out forwards;
+    }
+    
+    /* After animation completes, maintain visible state */
+    .step-animation-complete .click-circle {
+        opacity: 0.6 !important;
+        transform: scale(1) !important;
     }
     
     @keyframes clickContract {
@@ -230,33 +237,19 @@
         }
         50% {
             transform: scale(1.2);
-            opacity: 0.6;
+            opacity: 0.7;
         }
         100% {
             transform: scale(1);
-            opacity: 0.4;
-        }
-    }
-    
-    @keyframes clickPulse {
-        0% {
-            transform: scale(1);
-            opacity: 0.4;
-        }
-        50% {
-            transform: scale(1.1);
             opacity: 0.6;
-        }
-        100% {
-            transform: scale(1);
-            opacity: 0.4;
         }
     }
     
     /* Hover effect to make indicator more visible */
     .tutorial-step:hover .click-circle {
-        opacity: 0.8 !important;
-        transform: scale(1.1);
+        opacity: 0.9 !important;
+        transform: scale(1.1) !important;
+        transition: all 0.2s ease;
     }
     
     .step-screenshot {
@@ -388,12 +381,21 @@ function initializeClickAnimations() {
                         // Reset animation by removing and re-adding the class
                         circle.style.animation = 'none';
                         circle.offsetHeight; // Force reflow
-                        circle.style.animation = 'clickContract 1.5s ease-out';
+                        circle.style.animation = 'clickContract 1.5s ease-out forwards';
+                        
+                        // Add persistent state after animation completes
+                        setTimeout(() => {
+                            entry.target.classList.add('step-animation-complete');
+                        }, 1500);
                     });
                 }, 200);
             } else {
-                // Remove visible class when step goes out of view
-                entry.target.classList.remove('step-visible');
+                // Keep the visible state even when out of view, only remove if user scrolls way past
+                // This ensures circles remain visible once animated
+                const rect = entry.target.getBoundingClientRect();
+                if (rect.top > window.innerHeight + 200 || rect.bottom < -200) {
+                    entry.target.classList.remove('step-visible', 'step-animation-complete');
+                }
             }
         });
     }, {

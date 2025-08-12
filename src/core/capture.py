@@ -44,53 +44,125 @@ class ScreenCapture:
     """Cross-platform screenshot capture manager"""
     
     def __init__(self, debug_mode: bool = False):
-        if MSS_AVAILABLE:
-            self.sct = mss.mss()
-        else:
-            self.sct = None
+        # Don't create MSS instance in __init__ to avoid threading issues
         self.system = platform.system().lower()
         self._last_screenshot = None
         self._last_screenshot_time = 0
         self.debug_mode = debug_mode
+        self._thread_local_sct = None
+        self._last_monitor_info = None
         
-    def capture_full_screen(self, monitor_id: int = 1) -> Optional[Image.Image]:
+    def _get_sct_instance(self):
+        """Get thread-local MSS instance to avoid threading issues on Windows"""
+        if not MSS_AVAILABLE:
+            return None
+        
+        # Create a new MSS instance for each thread to avoid Windows threading issues
+        try:
+            return mss.mss()
+        except Exception as e:
+            print(f"Error creating MSS instance: {e}")
+            return None
+    
+    def get_monitor_from_point(self, x: int, y: int) -> int:
+        """Determine which monitor contains the given point"""
+        sct = self._get_sct_instance()
+        if not sct:
+            return 1  # Default to primary monitor
+        
+        try:
+            if self.debug_mode:
+                print(f"DEBUG: Detecting monitor for point ({x}, {y})")
+                print(f"DEBUG: Available monitors: {len(sct.monitors) - 1}")
+            
+            # Check each monitor to see which contains the point
+            for i, monitor in enumerate(sct.monitors[1:], 1):  # Skip index 0 (all monitors)
+                left, top = monitor['left'], monitor['top']
+                right, bottom = left + monitor['width'], top + monitor['height']
+                
+                if self.debug_mode:
+                    print(f"DEBUG: Monitor {i}: ({left}, {top}) to ({right}, {bottom}) [{monitor['width']}x{monitor['height']}]")
+                
+                if (left <= x < right and top <= y < bottom):
+                    if self.debug_mode:
+                        print(f"DEBUG: Point ({x}, {y}) found in Monitor {i}")
+                    return i
+            
+            # If point is not found in any monitor, return primary monitor
+            if self.debug_mode:
+                print(f"DEBUG: Point ({x}, {y}) not found in any monitor, defaulting to Monitor 1")
+            return 1
+        except Exception as e:
+            print(f"Error detecting monitor: {e}")
+            return 1
+        finally:
+            if sct and hasattr(sct, 'close'):
+                sct.close()
+    
+    def capture_full_screen(self, monitor_id: int = 1, click_point: tuple = None) -> Optional[Image.Image]:
         """
         Capture full screen screenshot
         
         Args:
-            monitor_id: Monitor number (1 for primary, 0 for all monitors)
+            monitor_id: Monitor number (1 for primary, 0 for all monitors, -1 for auto-detect)
+            click_point: Tuple (x, y) to auto-detect which monitor to capture from
             
         Returns:
             PIL Image of the screenshot, or None if capture not available
         """
-        if not MSS_AVAILABLE or not self.sct:
+        if not MSS_AVAILABLE:
             print("Screenshot capture not available")
+            return None
+        
+        sct = self._get_sct_instance()
+        if not sct:
+            print("Failed to create MSS instance")
             return None
             
         try:
+            # Auto-detect monitor based on click point
+            if click_point is not None:
+                monitor_id = self.get_monitor_from_point(click_point[0], click_point[1])
+                if self.debug_mode:
+                    print(f"DEBUG: Auto-detected monitor {monitor_id} for click at {click_point}")
+            
             # Get monitor information
             if monitor_id == 0:
                 # Capture all monitors
-                monitor = self.sct.monitors[0]  # All monitors combined
+                monitor = sct.monitors[0]  # All monitors combined
             else:
                 # Capture specific monitor (default to primary)
-                monitor = self.sct.monitors[min(monitor_id, len(self.sct.monitors) - 1)]
+                monitor = sct.monitors[min(monitor_id, len(sct.monitors) - 1)]
+            
+            if self.debug_mode:
+                print(f"DEBUG: Capturing monitor {monitor_id}: {monitor['width']}x{monitor['height']} at ({monitor['left']}, {monitor['top']})")
             
             # Capture screenshot
-            screenshot = self.sct.grab(monitor)
+            screenshot = sct.grab(monitor)
             
             # Convert to PIL Image
             img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
             
-            # Cache the screenshot
+            # Cache the screenshot and monitor info
             self._last_screenshot = img
             self._last_screenshot_time = time.time()
+            self._last_monitor_info = {
+                'id': monitor_id,
+                'left': monitor['left'],
+                'top': monitor['top'],
+                'width': monitor['width'],
+                'height': monitor['height']
+            }
             
             return img
             
         except Exception as e:
             print(f"Error capturing screenshot: {e}")
             return None
+        finally:
+            # Always close the MSS instance to prevent threading issues
+            if sct and hasattr(sct, 'close'):
+                sct.close()
     
     def capture_region(self, x: int, y: int, width: int, height: int) -> Optional[Image.Image]:
         """
@@ -103,6 +175,10 @@ class ScreenCapture:
         Returns:
             PIL Image of the region or None if failed
         """
+        sct = self._get_sct_instance()
+        if not sct:
+            return None
+            
         try:
             # Define region
             region = {
@@ -113,7 +189,7 @@ class ScreenCapture:
             }
             
             # Capture region
-            screenshot = self.sct.grab(region)
+            screenshot = sct.grab(region)
             
             # Convert to PIL Image
             img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
@@ -123,6 +199,9 @@ class ScreenCapture:
         except Exception as e:
             print(f"Error capturing region: {e}")
             return None
+        finally:
+            if sct and hasattr(sct, 'close'):
+                sct.close()
     
     def capture_click_region(self, click_x: int, click_y: int, 
                            base_width: int = 200, base_height: int = 100) -> Optional[Image.Image]:
@@ -160,22 +239,46 @@ class ScreenCapture:
         Returns:
             Dictionary with screen information
         """
-        try:
-            primary_monitor = self.sct.monitors[1]  # Primary monitor
-            all_monitors = self.sct.monitors[0]     # All monitors combined
+        sct = self._get_sct_instance()
+        if not sct:
+            return {'width': 1920, 'height': 1080, 'monitor_count': 1, 'system': self.system}
             
-            return {
+        try:
+            primary_monitor = sct.monitors[1]  # Primary monitor
+            all_monitors = sct.monitors[0]     # All monitors combined
+            
+            screen_info = {
                 'primary_width': primary_monitor['width'],
                 'primary_height': primary_monitor['height'],
                 'width': all_monitors['width'],
                 'height': all_monitors['height'],
-                'monitor_count': len(self.sct.monitors) - 1,  # -1 because [0] is all monitors
-                'system': self.system
+                'monitor_count': len(sct.monitors) - 1,  # -1 because [0] is all monitors
+                'system': self.system,
+                'monitors': []
             }
+            
+            # Add detailed monitor information
+            for i, monitor in enumerate(sct.monitors[1:], 1):
+                # Check if monitor appears to be in portrait mode
+                is_portrait = monitor['height'] > monitor['width']
+                screen_info['monitors'].append({
+                    'id': i,
+                    'left': monitor['left'],
+                    'top': monitor['top'],
+                    'width': monitor['width'],
+                    'height': monitor['height'],
+                    'is_portrait': is_portrait,
+                    'aspect_ratio': round(monitor['width'] / monitor['height'], 2)
+                })
+            
+            return screen_info
             
         except Exception as e:
             print(f"Error getting screen info: {e}")
             return {'width': 1920, 'height': 1080, 'monitor_count': 1, 'system': self.system}
+        finally:
+            if sct and hasattr(sct, 'close'):
+                sct.close()
     
     def save_screenshot(self, image: Image.Image, filepath: Path) -> bool:
         """
@@ -199,6 +302,43 @@ class ScreenCapture:
         except Exception as e:
             print(f"Error saving screenshot: {e}")
             return False
+    
+    def get_last_monitor_info(self) -> Optional[dict]:
+        """Get information about the last captured monitor"""
+        return self._last_monitor_info
+    
+    def adjust_coordinates_to_monitor(self, global_x: int, global_y: int) -> Tuple[int, int]:
+        """
+        Adjust global coordinates to be relative to the last captured monitor
+        
+        Args:
+            global_x, global_y: Global screen coordinates
+            
+        Returns:
+            Tuple of (monitor_relative_x, monitor_relative_y)
+        """
+        if not self._last_monitor_info:
+            if self.debug_mode:
+                print(f"DEBUG: No monitor info available, returning global coordinates")
+            return global_x, global_y
+        
+        monitor = self._last_monitor_info
+        relative_x = global_x - monitor['left']
+        relative_y = global_y - monitor['top']
+        
+        if self.debug_mode:
+            print(f"DEBUG: Adjusting coordinates ({global_x}, {global_y}) for monitor at ({monitor['left']}, {monitor['top']})")
+            print(f"DEBUG: Monitor size: {monitor['width']}x{monitor['height']}")
+            print(f"DEBUG: Raw relative: ({relative_x}, {relative_y})")
+        
+        # Ensure coordinates are within monitor bounds
+        clamped_x = max(0, min(relative_x, monitor['width'] - 1))
+        clamped_y = max(0, min(relative_y, monitor['height'] - 1))
+        
+        if self.debug_mode and (clamped_x != relative_x or clamped_y != relative_y):
+            print(f"DEBUG: Coordinates clamped from ({relative_x}, {relative_y}) to ({clamped_x}, {clamped_y})")
+        
+        return clamped_x, clamped_y
     
     def get_cached_screenshot(self, max_age_seconds: float = 0.1) -> Optional[Image.Image]:
         """
@@ -319,5 +459,5 @@ class ScreenCapture:
     
     def close(self):
         """Clean up resources"""
-        if hasattr(self.sct, 'close'):
-            self.sct.close()
+        # No persistent MSS instance to close since we create thread-local instances
+        pass

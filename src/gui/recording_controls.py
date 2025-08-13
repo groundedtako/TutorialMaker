@@ -39,7 +39,7 @@ class RecordingControlWindow:
         self.window = tk.Toplevel(self.main_window.root)
         self.window.title("Recording Controls")
         self.window.geometry("320x140")
-        self.window.resizable(False, False)
+        self.window.resizable(True, True)
         
         # Make window stay on top
         self.window.attributes('-topmost', True)
@@ -118,17 +118,16 @@ class RecordingControlWindow:
                                   command=self._stop_recording, width=8)
         self.stop_btn.pack(side=tk.LEFT, padx=(0, 5))
         
-        self.minimize_btn = ttk.Button(button_frame, text="—", 
-                                      command=self._minimize, width=3)
-        self.minimize_btn.pack(side=tk.RIGHT)
+        # Removed minimize button - users can move the panel or use system tray instead
     
     def _setup_bindings(self):
         """Set up event bindings"""
         if not self.window:
             return
         
-        # Double-click to minimize/restore
-        self.window.bind("<Double-Button-1>", lambda e: self._minimize())
+        # Allow dragging the window
+        self.window.bind("<Button-1>", self._on_window_click)
+        self.window.bind("<B1-Motion>", self._on_window_drag)
         
         # Close button handling
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -165,25 +164,17 @@ class RecordingControlWindow:
         """Stop recording"""
         self.main_window._stop_recording()
     
-    def _minimize(self):
-        """Minimize to a small indicator"""
-        if self.window:
-            self.window.geometry("100x30")
-            # Hide all widgets except indicator and minimize button
-            for widget in self.window.winfo_children():
-                if isinstance(widget, ttk.Frame):
-                    for child in widget.winfo_children():
-                        if not isinstance(child, tk.Canvas) and child != self.minimize_btn:
-                            child.pack_forget()
-            
-            self.minimize_btn.config(text="□", command=self._restore)
+    def _on_window_click(self, event):
+        """Handle window click for dragging"""
+        self.drag_start_x = event.x
+        self.drag_start_y = event.y
     
-    def _restore(self):
-        """Restore full control window"""
-        if self.window:
-            self.window.geometry("320x140")
-            self._create_widgets()  # Recreate all widgets
-            self.minimize_btn.config(text="—", command=self._minimize)
+    def _on_window_drag(self, event):
+        """Handle window dragging"""
+        if hasattr(self, 'drag_start_x') and hasattr(self, 'drag_start_y'):
+            x = self.window.winfo_x() + (event.x - self.drag_start_x)
+            y = self.window.winfo_y() + (event.y - self.drag_start_y)
+            self.window.geometry(f"+{x}+{y}")
     
     def _start_updates(self):
         """Start periodic updates of recording stats"""

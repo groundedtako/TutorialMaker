@@ -10,7 +10,8 @@ import webbrowser
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from ..core.app import TutorialMakerApp, RecordingSession
+from ..core.app import TutorialMakerApp
+from ..core.session_manager import RecordingSession
 
 
 class MainWindow:

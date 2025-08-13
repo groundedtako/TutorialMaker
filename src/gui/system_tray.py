@@ -101,6 +101,7 @@ class SystemTrayManager:
             menu_items.extend([
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("📊 Show Main Window", self._show_main_window),
+                pystray.MenuItem("🎛️ Show Floating Controls", self._show_floating_controls),
                 pystray.MenuItem("🌐 Open Web Editor", self._open_web_editor),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("⚙️ Settings", self._open_settings),
@@ -198,6 +199,15 @@ class SystemTrayManager:
         """Show main application window"""
         if self.main_window:
             self.main_window.show()
+    
+    def _show_floating_controls(self, icon=None, item=None):
+        """Show floating recording controls"""
+        try:
+            if self.main_window:
+                self.main_window._show_recording_controls()
+        except Exception as e:
+            import tkinter.messagebox as messagebox
+            messagebox.showerror("Error", f"Failed to show floating controls: {e}")
     
     def _open_web_editor(self, icon=None, item=None):
         """Open web editor in browser"""

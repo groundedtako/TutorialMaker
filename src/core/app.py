@@ -166,8 +166,11 @@ class TutorialMakerApp:
         # Add to event queue with captured screenshot and coordinate info
         self.event_queue.add_mouse_click(event, screenshot, coordinate_info)
         
+        # Increment step counter for real-time user feedback
+        step_count = self.session_manager.increment_step_counter()
+        
         if self.debug_mode:
-            print(f"DEBUG: Queued mouse click at ({event.x}, {event.y}) with screenshot and coordinates")
+            print(f"DEBUG: Queued mouse click at ({event.x}, {event.y}) - Step {step_count}")
     
     def _on_keyboard_event(self, event: KeyPressEvent):
         """Handle keyboard events - add to queue during recording"""
@@ -179,11 +182,25 @@ class TutorialMakerApp:
         if not session or not session.is_recording():
             return
         
-        # Simply add to event queue - no processing during recording
+        # Add to event queue
         self.event_queue.add_keyboard_event(event)
         
-        if self.debug_mode:
-            print(f"DEBUG: Queued keyboard event '{event.key}'")
+        # Increment step counter for significant keyboard events (real-time feedback)
+        should_increment = False
+        if hasattr(event, 'is_special') and event.is_special:
+            # Special keys like Enter, Tab, etc.
+            should_increment = True
+        elif hasattr(event, 'event_type') and event.event_type == "text_input":
+            # Text input sessions
+            should_increment = True
+        
+        if should_increment:
+            step_count = self.session_manager.increment_step_counter()
+            if self.debug_mode:
+                print(f"DEBUG: Queued keyboard event '{event.key}' - Step {step_count}")
+        else:
+            if self.debug_mode:
+                print(f"DEBUG: Queued keyboard event '{event.key}' (no step increment)")
     
     
     def list_tutorials(self) -> List[TutorialMetadata]:

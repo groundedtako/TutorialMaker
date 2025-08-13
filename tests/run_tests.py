@@ -168,6 +168,14 @@ class TestSuiteManager:
                                 print("All SessionManager tests passed!")
                             else:
                                 raise Exception("SessionManager tests failed")
+                        elif test_file.name == "test_realtime_integration.py":
+                            # Run real-time integration test
+                            from test_realtime_integration import run_realtime_integration_test
+                            result = run_realtime_integration_test()
+                            if result:
+                                print("Real-time integration test passed!")
+                            else:
+                                raise Exception("Real-time integration test failed")
                 
                 stdout_content = stdout_buffer.getvalue()
                 stderr_content = stderr_buffer.getvalue()
@@ -249,7 +257,8 @@ class TestSuiteManager:
             self.test_root / "test_event_processor.py",
             self.test_root / "test_integration_simple.py", 
             self.test_root / "test_coordinate_fix.py",
-            self.test_root / "test_session_manager.py"
+            self.test_root / "test_session_manager.py",
+            self.test_root / "test_realtime_integration.py"
             # Skip tests with external dependencies:
             # self.test_root / "test_mouse_click_accuracy.py",
             # self.test_root / "test_screenshot_marker.py",

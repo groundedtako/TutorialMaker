@@ -96,7 +96,8 @@ def test_queue_to_processor_integration():
     
     # Verify processing
     assert steps_created == 1
-    assert mock_session.step_counter == 1
+    # Note: session.step_counter is no longer incremented by processor
+    # It's incremented during event capture for real-time feedback
     
     # Verify storage calls
     mock_storage.save_tutorial_step.assert_called_once()

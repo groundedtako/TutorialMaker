@@ -95,11 +95,12 @@ class TestEventProcessor:
         self.mock_storage.save_tutorial_step.return_value = True
         
         # Process the event
-        result = self.processor._process_mouse_click_event(queued_event, "test_tutorial", self.mock_session)
+        result = self.processor._process_mouse_click_event(queued_event, "test_tutorial", self.mock_session, 1)
         
         # Verify result
         assert result is True
-        assert self.mock_session.step_counter == 1
+        # Note: session.step_counter is no longer incremented by processor
+        # It's incremented during event capture for real-time feedback
         
         # Verify OCR was called with correct coordinates
         self.mock_smart_ocr.process_click_region.assert_called_once_with(
@@ -155,11 +156,11 @@ class TestEventProcessor:
         self.mock_storage.save_tutorial_step.return_value = True
         
         # Process the event
-        result = self.processor._process_mouse_click_event(queued_event, "test_tutorial", self.mock_session)
+        result = self.processor._process_mouse_click_event(queued_event, "test_tutorial", self.mock_session, 1)
         
         # Verify result
         assert result is True
-        assert self.mock_session.step_counter == 1
+        # Note: session.step_counter is no longer incremented by processor
         
         # Verify fallback coordinates were used
         expected_x = int((500 / 1920) * 1920)  # Should be 500
@@ -199,11 +200,11 @@ class TestEventProcessor:
         self.mock_storage.save_tutorial_step.return_value = True
         
         # Process the event
-        result = self.processor._process_keyboard_event(queued_event, "test_tutorial", self.mock_session)
+        result = self.processor._process_keyboard_event(queued_event, "test_tutorial", self.mock_session, 1)
         
         # Verify result
         assert result is True
-        assert self.mock_session.step_counter == 1
+        # Note: session.step_counter is no longer incremented by processor
         
         # Verify storage calls
         self.mock_storage.save_tutorial_step.assert_called_once()
@@ -271,7 +272,7 @@ class TestEventProcessor:
         
         # Verify results
         assert steps_created == 2
-        assert self.mock_session.step_counter == 2
+        # Note: session.step_counter is no longer incremented by processor
         assert self.mock_storage.save_tutorial_step.call_count == 2
     
     def test_save_raw_events(self):

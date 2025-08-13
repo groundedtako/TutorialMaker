@@ -51,14 +51,17 @@ class EventProcessor:
         
         print(f"EventProcessor: Processing {len(events)} events into tutorial steps...")
         steps_created = 0
+        processed_step_number = 0  # Track processed steps separately from captured steps
         
         for queued_event in events:
             try:
                 if queued_event.event_type == 'mouse_click':
-                    if self._process_mouse_click_event(queued_event, tutorial_id, session):
+                    processed_step_number += 1
+                    if self._process_mouse_click_event(queued_event, tutorial_id, session, processed_step_number):
                         steps_created += 1
                 elif queued_event.event_type == 'keyboard_event':
-                    if self._process_keyboard_event(queued_event, tutorial_id, session):
+                    processed_step_number += 1
+                    if self._process_keyboard_event(queued_event, tutorial_id, session, processed_step_number):
                         steps_created += 1
             except Exception as e:
                 print(f"EventProcessor: Error processing {queued_event.event_type} event: {e}")
@@ -66,7 +69,7 @@ class EventProcessor:
         print(f"EventProcessor: Created {steps_created} tutorial steps from {len(events)} events")
         return steps_created
     
-    def _process_mouse_click_event(self, queued_event: QueuedEvent, tutorial_id: str, session) -> bool:
+    def _process_mouse_click_event(self, queued_event: QueuedEvent, tutorial_id: str, session, step_number: int) -> bool:
         """Process a queued mouse click event into a tutorial step"""
         event = queued_event.event_object
         screenshot = queued_event.screenshot
@@ -120,9 +123,7 @@ class EventProcessor:
             # Generate step description
             description = self._generate_click_description(event, ocr_result)
             
-            # Create tutorial step
-            session.step_counter += 1
-            step_number = session.step_counter
+            # Use provided step number (don't increment session counter again)
             
             # Save screenshot
             screenshot_path = self.storage.save_screenshot(
@@ -157,7 +158,7 @@ class EventProcessor:
             print(f"EventProcessor: Error processing mouse click: {e}")
             return False
     
-    def _process_keyboard_event(self, queued_event: QueuedEvent, tutorial_id: str, session) -> bool:
+    def _process_keyboard_event(self, queued_event: QueuedEvent, tutorial_id: str, session, step_number: int) -> bool:
         """Process a queued keyboard event into a tutorial step"""
         event = queued_event.event_object
         
@@ -183,8 +184,7 @@ class EventProcessor:
                 # Take screenshot for special keys and text input sessions
                 screenshot = self.screen_capture.capture_full_screen(monitor_id=1)
                 
-                session.step_counter += 1
-                step_number = session.step_counter
+                # Use provided step number (don't increment session counter again)
                 
                 # Save screenshot
                 screenshot_path = None

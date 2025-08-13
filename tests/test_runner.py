@@ -61,6 +61,17 @@ def run_all_tests():
         print(f"FAIL - {e}")
     tests_run += 1
     
+    # Test 4: Session Manager Tests
+    print("4. Session Manager Tests...", end=" ")
+    try:
+        from test_session_manager import run_session_manager_tests
+        run_session_manager_tests()
+        print("PASS")
+        tests_passed += 1
+    except Exception as e:
+        print(f"FAIL - {e}")
+    tests_run += 1
+    
     # Summary
     duration = time.time() - start_time
     print("=" * 40)

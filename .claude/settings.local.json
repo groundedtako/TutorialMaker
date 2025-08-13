@@ -12,7 +12,8 @@
       "Bash(\"venv/Scripts/python.exe\" -m py_compile src/core/capture.py)",
       "Bash(\"venv/Scripts/python.exe\" --version)",
       "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.capture import ScreenCapture; print(''Syntax OK'')\")",
-      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; print(''App import OK'')\")"
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; print(''App import OK'')\")",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

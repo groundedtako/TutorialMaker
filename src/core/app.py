@@ -16,70 +16,9 @@ from .storage import TutorialStorage, TutorialStep, TutorialMetadata
 from .exporters import TutorialExporter
 from .event_queue import EventQueue
 from .event_processor import EventProcessor
+from .session_manager import SessionManager
 from ..web.server import TutorialWebServer
 
-class RecordingSession:
-    """Manages a single recording session"""
-    
-    def __init__(self, tutorial_id: str, title: str = ""):
-        self.tutorial_id = tutorial_id
-        self.title = title
-        self.status = "stopped"  # stopped, recording, paused
-        self.start_time = None
-        self.pause_start_time = None
-        self.total_pause_duration = 0.0
-        self.step_counter = 0
-        self.last_event_time = 0.0
-        
-    def start(self):
-        """Start recording"""
-        self.status = "recording"
-        self.start_time = time.time()
-        self.step_counter = 0
-        self.total_pause_duration = 0.0
-        print(f"Recording started for: {self.title}")
-    
-    def pause(self):
-        """Pause recording"""
-        if self.status == "recording":
-            self.status = "paused"
-            self.pause_start_time = time.time()
-            print("Recording paused")
-    
-    def resume(self):
-        """Resume recording"""
-        if self.status == "paused":
-            self.status = "recording"
-            if self.pause_start_time:
-                self.total_pause_duration += time.time() - self.pause_start_time
-                self.pause_start_time = None
-            print("Recording resumed")
-    
-    def stop(self):
-        """Stop recording"""
-        self.status = "stopped"
-        if self.pause_start_time:
-            self.total_pause_duration += time.time() - self.pause_start_time
-        print(f"Recording stopped. Total steps: {self.step_counter}")
-    
-    def is_recording(self) -> bool:
-        """Check if currently recording (not paused or stopped)"""
-        return self.status == "recording"
-    
-    def get_duration(self) -> float:
-        """Get total recording duration excluding pauses"""
-        if not self.start_time:
-            return 0.0
-        
-        current_time = time.time()
-        total_time = current_time - self.start_time
-        
-        # Subtract pause time
-        pause_time = self.total_pause_duration
-        if self.status == "paused" and self.pause_start_time:
-            pause_time += current_time - self.pause_start_time
-        
-        return max(0.0, total_time - pause_time)
 
 class TutorialMakerApp:
     """Main application class"""
@@ -96,8 +35,6 @@ class TutorialMakerApp:
         self.web_server.set_app_instance(self)  # Allow web server to access session status
         self.debug_mode = debug_mode
         
-        # Current session
-        self.current_session: Optional[RecordingSession] = None
         # Event queue for clean event processing
         self.event_queue = EventQueue()
         # Event processor for converting events to tutorial steps
@@ -106,6 +43,14 @@ class TutorialMakerApp:
             self.ocr_engine, 
             self.smart_ocr, 
             self.storage, 
+            debug_mode
+        )
+        # Session manager for handling recording sessions
+        self.session_manager = SessionManager(
+            self.storage,
+            self.event_monitor,
+            self.event_queue,
+            self.event_processor,
             debug_mode
         )
         
@@ -144,13 +89,6 @@ class TutorialMakerApp:
         Returns:
             Tutorial ID
         """
-        # Stop any current session
-        if self.current_session:
-            self.stop_recording()
-        
-        # Reset event queue for new session
-        self.event_queue = EventQueue()
-        
         # Create new tutorial project
         tutorial_id = self.storage.create_tutorial_project(title, description)
         
@@ -158,10 +96,10 @@ class TutorialMakerApp:
         metadata = self.storage.load_tutorial_metadata(tutorial_id)
         actual_title = metadata.title if metadata else (title or f"Tutorial {tutorial_id[:8]}")
         
-        # Create new session
-        self.current_session = RecordingSession(tutorial_id, actual_title)
+        # Create new session using SessionManager
+        session = self.session_manager.create_session(tutorial_id, actual_title)
         
-        print(f"New tutorial created: {self.current_session.title}")
+        print(f"New tutorial created: {session.title}")
         return tutorial_id
     
     def start_recording(self) -> bool:
@@ -171,37 +109,15 @@ class TutorialMakerApp:
         Returns:
             True if recording started successfully
         """
-        if not self.current_session:
-            print("No tutorial session. Create a new tutorial first.")
-            return False
-        
-        # Start event monitoring
-        if not self.event_monitor.start_monitoring():
-            print("Failed to start event monitoring. Limited functionality available.")
-            # Continue anyway - user can still do manual capture
-        
-        # Start session
-        self.current_session.start()
-        
-        # Start event queue
-        self.event_queue.start_recording()
-        
-        # Update storage status
-        self.storage.update_tutorial_status(self.current_session.tutorial_id, "recording")
-        
-        return True
+        return self.session_manager.start_recording()
     
     def pause_recording(self):
         """Pause the current recording"""
-        if self.current_session and self.current_session.is_recording():
-            self.current_session.pause()
-            self.storage.update_tutorial_status(self.current_session.tutorial_id, "paused")
+        self.session_manager.pause_recording()
     
     def resume_recording(self):
         """Resume the current recording"""
-        if self.current_session and self.current_session.status == "paused":
-            self.current_session.resume()
-            self.storage.update_tutorial_status(self.current_session.tutorial_id, "recording")
+        self.session_manager.resume_recording()
     
     def stop_recording(self) -> Optional[str]:
         """
@@ -210,62 +126,16 @@ class TutorialMakerApp:
         Returns:
             Tutorial ID if successful, None otherwise
         """
-        if not self.current_session:
-            return None
-        
-        tutorial_id = self.current_session.tutorial_id
-        tutorial_title = self.current_session.title
-        
-        # Stop event queue and monitoring immediately
-        self.event_queue.stop_recording()
-        self.event_monitor.stop_monitoring()
-        
-        # Set session status to stopped to prevent any more event processing
-        self.current_session.status = "stopped"
-        
-        # Process all queued events into tutorial steps
-        print(f"Processing events for tutorial: {tutorial_title}")
-        self._process_queued_events()
-        
-        # Finalize session data
-        self.current_session.stop()
-        
-        # Update storage
-        self.storage.update_tutorial_status(tutorial_id, "completed")
-        
-        # Update metadata with final stats
-        metadata = self.storage.load_tutorial_metadata(tutorial_id)
-        if metadata:
-            metadata.duration = self.current_session.get_duration()
-            metadata.last_modified = time.time()
-            # Save updated metadata
-            project_path = self.storage.get_project_path(tutorial_id)
-            if project_path:
-                self.storage._save_metadata(project_path, metadata)
-        
-        # Store final stats before clearing session
-        final_step_count = self.current_session.step_counter
-        final_duration = self.current_session.get_duration()
-        
-        print(f"Tutorial completed: {tutorial_title}")
-        print(f"Duration: {final_duration:.1f} seconds")
-        print(f"Steps captured: {final_step_count}")
-        
-        # Get project path for user reference
-        project_path = self.storage.get_project_path(tutorial_id)
-        if project_path:
-            print(f"📁 Tutorial saved to: {project_path}")
-            print(f"🌐 Edit in browser: http://localhost:5001/tutorial/{tutorial_id}")
-            print("💡 Use 'export' command or web interface to export to HTML/Word/PDF")
-        
-        # Clear current session
-        self.current_session = None
-        
-        return tutorial_id
+        return self.session_manager.stop_recording()
     
     def _on_mouse_click(self, event: MouseClickEvent):
         """Handle mouse click events - capture screenshot and calculate coordinates, then add to queue during recording"""
-        if not self.current_session or not self.current_session.is_recording():
+        # Check if we have an active recording session
+        if not self.session_manager.has_active_session():
+            return
+        
+        session = self.session_manager.current_session
+        if not session or not session.is_recording():
             return
         
         # Capture screenshot immediately at the time of click
@@ -301,7 +171,12 @@ class TutorialMakerApp:
     
     def _on_keyboard_event(self, event: KeyPressEvent):
         """Handle keyboard events - add to queue during recording"""
-        if not self.current_session or not self.current_session.is_recording():
+        # Check if we have an active recording session
+        if not self.session_manager.has_active_session():
+            return
+        
+        session = self.session_manager.current_session
+        if not session or not session.is_recording():
             return
         
         # Simply add to event queue - no processing during recording
@@ -310,32 +185,6 @@ class TutorialMakerApp:
         if self.debug_mode:
             print(f"DEBUG: Queued keyboard event '{event.key}'")
     
-    def _process_queued_events(self):
-        """Process all queued events into tutorial steps using EventProcessor"""
-        if not self.current_session:
-            return
-        
-        # Get events from queue
-        events = self.event_queue.get_events_for_processing()
-        
-        if not events:
-            print("No events to process")
-            self.event_queue.complete_processing()
-            return
-        
-        # Use EventProcessor to convert events to tutorial steps
-        steps_created = self.event_processor.process_events_to_steps(
-            events, 
-            self.current_session.tutorial_id, 
-            self.current_session
-        )
-        
-        # Save raw events to events.json
-        self.event_processor.save_raw_events(events, self.current_session.tutorial_id)
-        
-        # Complete processing
-        self.event_queue.complete_processing()
-        print(f"Tutorial processing complete. Created {steps_created} tutorial steps")
     
     def list_tutorials(self) -> List[TutorialMetadata]:
         """List all available tutorials"""
@@ -379,6 +228,7 @@ class TutorialMakerApp:
         self.debug_mode = not self.debug_mode
         self.screen_capture.set_debug_mode(self.debug_mode)
         self.event_processor.debug_mode = self.debug_mode
+        self.session_manager.set_debug_mode(self.debug_mode)
         return self.debug_mode
     
     def start_web_server(self) -> str:
@@ -394,21 +244,7 @@ class TutorialMakerApp:
     
     def get_current_session_status(self) -> Dict[str, Any]:
         """Get status of current recording session"""
-        if not self.current_session:
-            return {
-                'status': 'no_session',
-                'debug_mode': self.debug_mode
-            }
-        
-        return {
-            'status': self.current_session.status,
-            'title': self.current_session.title,
-            'tutorial_id': self.current_session.tutorial_id,
-            'duration': self.current_session.get_duration(),
-            'step_count': self.current_session.step_counter,
-            'is_recording': self.current_session.is_recording(),
-            'debug_mode': self.debug_mode
-        }
+        return self.session_manager.get_session_status()
     
     def run(self):
         """Run the main application loop"""
@@ -485,7 +321,7 @@ class TutorialMakerApp:
         print("\nShutting down...")
         
         # Stop any recording
-        if self.current_session:
+        if self.session_manager.has_active_session():
             self.stop_recording()
         
         # Stop event monitoring

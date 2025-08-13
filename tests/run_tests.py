@@ -176,6 +176,22 @@ class TestSuiteManager:
                                 print("Real-time integration test passed!")
                             else:
                                 raise Exception("Real-time integration test failed")
+                        elif test_file.name == "test_coordinate_system_handler.py":
+                            # Run coordinate system handler tests
+                            from test_coordinate_system_handler import run_coordinate_system_handler_tests
+                            result = run_coordinate_system_handler_tests()
+                            if result:
+                                print("CoordinateSystemHandler tests passed!")
+                            else:
+                                raise Exception("CoordinateSystemHandler tests failed")
+                        elif test_file.name == "test_coordinate_handler_integration.py":
+                            # Run coordinate handler integration tests
+                            from test_coordinate_handler_integration import run_coordinate_handler_integration_tests
+                            result = run_coordinate_handler_integration_tests()
+                            if result:
+                                print("CoordinateHandler integration tests passed!")
+                            else:
+                                raise Exception("CoordinateHandler integration tests failed")
                 
                 stdout_content = stdout_buffer.getvalue()
                 stderr_content = stderr_buffer.getvalue()
@@ -258,7 +274,9 @@ class TestSuiteManager:
             self.test_root / "test_integration_simple.py", 
             self.test_root / "test_coordinate_fix.py",
             self.test_root / "test_session_manager.py",
-            self.test_root / "test_realtime_integration.py"
+            self.test_root / "test_realtime_integration.py",
+            self.test_root / "test_coordinate_system_handler.py",
+            self.test_root / "test_coordinate_handler_integration.py"
             # Skip tests with external dependencies:
             # self.test_root / "test_mouse_click_accuracy.py",
             # self.test_root / "test_screenshot_marker.py",

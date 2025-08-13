@@ -17,6 +17,7 @@ from .exporters import TutorialExporter
 from .event_queue import EventQueue
 from .event_processor import EventProcessor
 from .session_manager import SessionManager
+from .coordinate_handler import CoordinateSystemHandler
 from ..web.server import TutorialWebServer
 
 
@@ -45,6 +46,8 @@ class TutorialMakerApp:
             self.storage, 
             debug_mode
         )
+        # Coordinate system handler for multi-monitor coordinate transformations
+        self.coordinate_handler = CoordinateSystemHandler(debug_mode)
         # Session manager for handling recording sessions
         self.session_manager = SessionManager(
             self.storage,
@@ -71,6 +74,10 @@ class TutorialMakerApp:
         event_status = self.event_monitor.get_status()
         ocr_stats = self.ocr_engine.get_stats()
         storage_stats = self.storage.get_storage_stats()
+        
+        # Initialize coordinate handler with monitor info
+        if 'monitors' in screen_info:
+            self.coordinate_handler.update_monitor_info(screen_info['monitors'])
         
         print("\nSystem Status:")
         print(f"  Screen: {screen_info['width']}x{screen_info['height']} ({screen_info['monitor_count']} monitors)")
@@ -138,30 +145,18 @@ class TutorialMakerApp:
         if not session or not session.is_recording():
             return
         
+        # Transform coordinates using centralized coordinate handler
+        coord_info = self.coordinate_handler.transform_coordinates(event.x, event.y)
+        
         # Capture screenshot immediately at the time of click
         screenshot = self.screen_capture.capture_full_screen(click_point=(event.x, event.y))
         
-        # Calculate coordinate information while monitor info is fresh
-        coordinate_info = None
+        # Track which monitor was captured
         if screenshot:
-            # Get screen dimensions
-            screen_info = self.screen_capture.get_screen_info()
-            screen_width = screen_info['width']
-            screen_height = screen_info['height']
-            
-            # Adjust click coordinates to be relative to the captured monitor
-            monitor_relative_x, monitor_relative_y = self.screen_capture.adjust_coordinates_to_monitor(event.x, event.y)
-            
-            # Get monitor info while it's fresh
-            monitor_info = self.screen_capture.get_last_monitor_info()
-            
-            coordinate_info = {
-                'screen_width': screen_width,
-                'screen_height': screen_height,
-                'monitor_relative_x': monitor_relative_x,
-                'monitor_relative_y': monitor_relative_y,
-                'monitor_info': monitor_info
-            }
+            self.coordinate_handler.set_last_capture_monitor(coord_info.monitor)
+        
+        # Convert to legacy format for compatibility with existing EventProcessor
+        coordinate_info = coord_info.to_legacy_dict() if coord_info else None
         
         # Add to event queue with captured screenshot and coordinate info
         self.event_queue.add_mouse_click(event, screenshot, coordinate_info)
@@ -246,6 +241,7 @@ class TutorialMakerApp:
         self.screen_capture.set_debug_mode(self.debug_mode)
         self.event_processor.debug_mode = self.debug_mode
         self.session_manager.set_debug_mode(self.debug_mode)
+        self.coordinate_handler.debug_mode = self.debug_mode
         return self.debug_mode
     
     def start_web_server(self) -> str:

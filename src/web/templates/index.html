@@ -422,10 +422,6 @@ async function resumeRecording() {
 }
 
 async function stopRecording() {
-    if (!confirm('Are you sure you want to stop recording? This will finalize the tutorial.')) {
-        return;
-    }
-    
     try {
         showAlert('Stopping recording and exporting...', 'info');
         

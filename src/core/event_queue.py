@@ -113,6 +113,19 @@ class EventQueue:
         # Return copy of events for processing
         return self.events.copy()
     
+    def remove_last_event(self) -> bool:
+        """
+        Remove the last event from the queue (likely a recording control button click)
+        
+        Returns:
+            True if an event was removed, False if queue was empty
+        """
+        if self.events:
+            removed_event = self.events.pop()
+            print(f"EventQueue: Removed last event ({removed_event.event_type} at {removed_event.timestamp})")
+            return True
+        return False
+    
     def complete_processing(self):
         """Mark processing as complete and reset queue"""
         self.state = QueueState.IDLE

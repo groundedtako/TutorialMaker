@@ -18,6 +18,7 @@ from .event_queue import EventQueue
 from .event_processor import EventProcessor
 from .session_manager import SessionManager
 from .coordinate_handler import CoordinateSystemHandler
+from .event_filter import EventFilter
 from ..web.server import TutorialWebServer
 
 
@@ -48,6 +49,8 @@ class TutorialMakerApp:
         )
         # Coordinate system handler for multi-monitor coordinate transformations
         self.coordinate_handler = CoordinateSystemHandler(debug_mode)
+        # Event filter for filtering app-native events and keystrokes
+        self.event_filter = EventFilter(debug_mode)
         # Session manager for handling recording sessions
         self.session_manager = SessionManager(
             self.storage,
@@ -120,10 +123,17 @@ class TutorialMakerApp:
     
     def pause_recording(self):
         """Pause the current recording"""
+        # Remove last event from queue (likely the pause button click)
+        if hasattr(self, 'event_queue'):
+            self.event_queue.remove_last_event()
+        
         self.session_manager.pause_recording()
     
     def resume_recording(self):
         """Resume the current recording"""
+        # No need to remove last event - resume button clicks aren't captured during pause
+        # because session.is_recording() returns False when paused
+        
         self.session_manager.resume_recording()
     
     def stop_recording(self) -> Optional[str]:
@@ -133,6 +143,10 @@ class TutorialMakerApp:
         Returns:
             Tutorial ID if successful, None otherwise
         """
+        # Remove last event from queue (likely the stop button click)
+        if hasattr(self, 'event_queue'):
+            self.event_queue.remove_last_event()
+        
         return self.session_manager.stop_recording()
     
     def _on_mouse_click(self, event: MouseClickEvent):
@@ -144,6 +158,14 @@ class TutorialMakerApp:
         session = self.session_manager.current_session
         if not session or not session.is_recording():
             return
+        
+        # Apply filtering (mainly for keystroke filtering and post-stop/pause filtering)
+        if hasattr(self, 'event_filter'):
+            filter_decision = self.event_filter.should_capture_event(event, session)
+            if not filter_decision.should_capture:
+                if self.debug_mode:
+                    print(f"DEBUG: Filtered {event} - Reason: {filter_decision.reason}")
+                return
         
         # Transform coordinates using centralized coordinate handler
         coord_info = self.coordinate_handler.transform_coordinates(event.x, event.y)
@@ -176,6 +198,14 @@ class TutorialMakerApp:
         session = self.session_manager.current_session
         if not session or not session.is_recording():
             return
+        
+        # Apply filtering (including keystroke filtering if enabled)
+        if hasattr(self, 'event_filter'):
+            filter_decision = self.event_filter.should_capture_event(event, session)
+            if not filter_decision.should_capture:
+                if self.debug_mode:
+                    print(f"DEBUG: Filtered keyboard event '{event.key}' - Reason: {filter_decision.reason}")
+                return
         
         # Add to event queue
         self.event_queue.add_keyboard_event(event)
@@ -242,7 +272,17 @@ class TutorialMakerApp:
         self.event_processor.debug_mode = self.debug_mode
         self.session_manager.set_debug_mode(self.debug_mode)
         self.coordinate_handler.debug_mode = self.debug_mode
+        self.event_filter.debug_mode = self.debug_mode
         return self.debug_mode
+    
+    def toggle_keystroke_filtering(self) -> bool:
+        """Toggle keystroke filtering on/off"""
+        # Remove last event from queue (likely the toggle button click or CLI command)
+        if hasattr(self, 'event_queue'):
+            self.event_queue.remove_last_event()
+        
+        enabled = self.event_filter.toggle_keystroke_filtering()
+        return enabled
     
     def start_web_server(self) -> str:
         """Start the web server for editing tutorials"""
@@ -254,6 +294,11 @@ class TutorialMakerApp:
         except Exception as e:
             print(f"⚠️  Failed to start web server: {e}")
             return ""
+    
+    @property
+    def current_session(self):
+        """Access current session for backward compatibility"""
+        return self.session_manager.current_session
     
     def get_current_session_status(self) -> Dict[str, Any]:
         """Get status of current recording session"""
@@ -273,6 +318,7 @@ class TutorialMakerApp:
         print("  list           - List tutorials")
         print("  status         - Show current status")
         print("  debug          - Toggle debug mode (shows precise click locations)")
+        print("  filter         - Toggle keystroke filtering on/off")
         print("  web            - Start web server for editing (http://localhost:5000)")
         print("  quit           - Exit application")
         
@@ -316,6 +362,10 @@ class TutorialMakerApp:
                         debug_enabled = self.toggle_debug_mode()
                         status = "enabled" if debug_enabled else "disabled"
                         print(f"Debug mode {status}")
+                    elif cmd == "filter":
+                        filter_enabled = self.toggle_keystroke_filtering()
+                        status = "enabled" if filter_enabled else "disabled"
+                        print(f"Keystroke filtering {status}")
                     elif cmd == "web":
                         self.start_web_server()
                     else:

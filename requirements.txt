@@ -32,4 +32,8 @@ uuid>=1.30               # Session ID generation
 watchdog>=3.0.0          # File system monitoring
 typing-extensions>=4.7.0 # Type hints support
 
+# Testing
+pytest>=8.3.4            # Testing framework
+pytest-cov>=4.1.0        # Code coverage
+
 # Note: tkinter is included with Python standard library

@@ -21,6 +21,32 @@ NEVER USE: 🎯 ✅ ❌ 🚀 📁 → ← ↑ ↓ • ▼ ▲ ┌ ┐ ├ ┤ é
 Use: "SUCCESS:" "ERROR:" "INFO:" "->" "<-" "*" "-" "+" "|" 
 ```
 
+## TESTING AND QUALITY ASSURANCE
+
+### Test Suite Management
+**CRITICAL**: Always run tests before committing changes
+```bash
+# Quick validation (recommended for development)
+python test_runner.py
+
+# Comprehensive testing (before major commits)  
+python run_tests.py
+
+# Debug mode when troubleshooting
+python run_tests.py --debug --keep-artifacts
+```
+
+### Test Coverage
+- **Unit Tests**: EventProcessor, coordinate transformations, event queue
+- **Integration Tests**: Component interaction, end-to-end workflows
+- **Validation Tests**: Coordinate accuracy, screenshot capture timing
+
+### Refactoring Safety Protocol
+1. **Before refactoring**: Run `python run_tests.py` to establish baseline
+2. **During refactoring**: Keep tests passing at each step
+3. **After refactoring**: Add tests for new functionality
+4. **Before committing**: Final validation with `python test_runner.py`
+
 ## Project Overview
 A privacy-focused, local-only screen recording tool that captures user interactions (mouse clicks, keystrokes) and generates shareable tutorials. Runs entirely locally without requiring admin privileges or cloud connectivity.
 

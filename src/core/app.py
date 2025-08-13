@@ -14,6 +14,8 @@ from .ocr import OCREngine, OCRResult
 from .smart_ocr import SmartOCRProcessor
 from .storage import TutorialStorage, TutorialStep, TutorialMetadata
 from .exporters import TutorialExporter
+from .event_queue import EventQueue
+from .event_processor import EventProcessor
 from ..web.server import TutorialWebServer
 
 class RecordingSession:
@@ -96,8 +98,16 @@ class TutorialMakerApp:
         
         # Current session
         self.current_session: Optional[RecordingSession] = None
-        # Timestamp when recording was stopped (to ignore events that occurred before stop)
-        self.stop_timestamp: Optional[float] = None
+        # Event queue for clean event processing
+        self.event_queue = EventQueue()
+        # Event processor for converting events to tutorial steps
+        self.event_processor = EventProcessor(
+            self.screen_capture, 
+            self.ocr_engine, 
+            self.smart_ocr, 
+            self.storage, 
+            debug_mode
+        )
         
         # Set up event callbacks
         self.event_monitor.set_mouse_callback(self._on_mouse_click)
@@ -138,8 +148,8 @@ class TutorialMakerApp:
         if self.current_session:
             self.stop_recording()
         
-        # Clear stop timestamp for new session
-        self.stop_timestamp = None
+        # Reset event queue for new session
+        self.event_queue = EventQueue()
         
         # Create new tutorial project
         tutorial_id = self.storage.create_tutorial_project(title, description)
@@ -173,6 +183,9 @@ class TutorialMakerApp:
         # Start session
         self.current_session.start()
         
+        # Start event queue
+        self.event_queue.start_recording()
+        
         # Update storage status
         self.storage.update_tutorial_status(self.current_session.tutorial_id, "recording")
         
@@ -203,14 +216,16 @@ class TutorialMakerApp:
         tutorial_id = self.current_session.tutorial_id
         tutorial_title = self.current_session.title
         
-        # Record the stop timestamp to ignore events that occurred before this moment
-        self.stop_timestamp = time.time()
+        # Stop event queue and monitoring immediately
+        self.event_queue.stop_recording()
+        self.event_monitor.stop_monitoring()
         
-        # Immediately set session status to stopped to prevent any more event processing
+        # Set session status to stopped to prevent any more event processing
         self.current_session.status = "stopped"
         
-        # Stop event monitoring
-        self.event_monitor.stop_monitoring()
+        # Process all queued events into tutorial steps
+        print(f"Processing events for tutorial: {tutorial_title}")
+        self._process_queued_events()
         
         # Finalize session data
         self.current_session.stop()
@@ -249,267 +264,78 @@ class TutorialMakerApp:
         return tutorial_id
     
     def _on_mouse_click(self, event: MouseClickEvent):
-        """Handle mouse click events"""
+        """Handle mouse click events - capture screenshot and calculate coordinates, then add to queue during recording"""
         if not self.current_session or not self.current_session.is_recording():
             return
         
-        # Double-check session status in case it changed during event processing
-        if not self.current_session or self.current_session.status == "stopped":
-            return
+        # Capture screenshot immediately at the time of click
+        screenshot = self.screen_capture.capture_full_screen(click_point=(event.x, event.y))
         
-        # Ignore events that occurred before or very close to when stop was called
-        if self.stop_timestamp and event.timestamp <= self.stop_timestamp + 0.1:  # 100ms grace period
-            return
-        
-        try:
-            # Get screen dimensions at the time of click
+        # Calculate coordinate information while monitor info is fresh
+        coordinate_info = None
+        if screenshot:
+            # Get screen dimensions
             screen_info = self.screen_capture.get_screen_info()
             screen_width = screen_info['width']
             screen_height = screen_info['height']
             
-            # Capture screenshot from the monitor where the click occurred
-            screenshot = self.screen_capture.capture_full_screen(click_point=(event.x, event.y))
-            if not screenshot:
-                print("Failed to capture screenshot")
-                return
-            
             # Adjust click coordinates to be relative to the captured monitor
             monitor_relative_x, monitor_relative_y = self.screen_capture.adjust_coordinates_to_monitor(event.x, event.y)
             
-            # Calculate percentage coordinates relative to the captured monitor (not total screen space)
+            # Get monitor info while it's fresh
             monitor_info = self.screen_capture.get_last_monitor_info()
-            if monitor_info:
-                # Percentage within the specific monitor that was captured
-                x_pct = monitor_relative_x / monitor_info['width']
-                y_pct = monitor_relative_y / monitor_info['height']
-            else:
-                # Fallback to total screen space if monitor info unavailable
-                x_pct = event.x / screen_width
-                y_pct = event.y / screen_height
             
-            # Convert adjusted coordinates to screenshot pixel coordinates if needed
-            screenshot_click_x = monitor_relative_x
-            screenshot_click_y = monitor_relative_y
-            
-            # Use smart OCR processing for better accuracy
-            ocr_result = self.smart_ocr.process_click_region(screenshot, screenshot_click_x, screenshot_click_y, self.debug_mode)
-            
-            # Debug: Save the cropped click region to see what we're capturing
-            if self.debug_mode:
-                try:
-                    from pathlib import Path
-                    debug_dir = Path(f"debug_clicks_{self.current_session.tutorial_id}")
-                    debug_dir.mkdir(exist_ok=True)
-                    
-                    # Save the cropped region around the click
-                    crop_size = 200
-                    half_size = crop_size // 2
-                    x1 = max(0, screenshot_click_x - half_size)
-                    y1 = max(0, screenshot_click_y - half_size)
-                    x2 = min(screenshot.size[0], screenshot_click_x + half_size)
-                    y2 = min(screenshot.size[1], screenshot_click_y + half_size)
-                    
-                    cropped = screenshot.crop((x1, y1, x2, y2))
-                    
-                    # Add a red dot to show where we think the click is within the crop
-                    from PIL import ImageDraw
-                    draw = ImageDraw.Draw(cropped)
-                    crop_click_x = screenshot_click_x - x1
-                    crop_click_y = screenshot_click_y - y1
-                    draw.ellipse([crop_click_x-5, crop_click_y-5, crop_click_x+5, crop_click_y+5], 
-                               fill="red", outline="darkred", width=2)
-                    
-                    debug_file = debug_dir / f"step_{step_number}_click_region.png"
-                    cropped.save(debug_file)
-                    
-                    # Also save a version with the "raw" coordinates for comparison
-                    raw_screenshot_x = int((event.x / screen_info['width']) * screenshot.size[0])
-                    raw_screenshot_y = int((event.y / screen_info['height']) * screenshot.size[1])
-                    
-                    raw_x1 = max(0, raw_screenshot_x - half_size)
-                    raw_y1 = max(0, raw_screenshot_y - half_size)
-                    raw_x2 = min(screenshot.size[0], raw_screenshot_x + half_size)
-                    raw_y2 = min(screenshot.size[1], raw_screenshot_y + half_size)
-                    
-                    raw_cropped = screenshot.crop((raw_x1, raw_y1, raw_x2, raw_y2))
-                    raw_draw = ImageDraw.Draw(raw_cropped)
-                    raw_crop_click_x = raw_screenshot_x - raw_x1
-                    raw_crop_click_y = raw_screenshot_y - raw_y1
-                    raw_draw.ellipse([raw_crop_click_x-5, raw_crop_click_y-5, raw_crop_click_x+5, raw_crop_click_y+5], 
-                                   fill="blue", outline="darkblue", width=2)
-                    
-                    raw_debug_file = debug_dir / f"step_{step_number}_click_region_RAW.png"
-                    raw_cropped.save(raw_debug_file)
-                    
-                    monitor_info = self.screen_capture.get_last_monitor_info()
-                    screen_info = self.screen_capture.get_screen_info()
-                    
-                    print(f"DEBUG: Saved click region to {debug_file}")
-                    print(f"DEBUG: Saved RAW comparison to {raw_debug_file}")
-                    print(f"DEBUG: Global click: ({event.x}, {event.y})")
-                    print(f"DEBUG: Screen dimensions: {screen_info['width']}x{screen_info['height']}")
-                    print(f"DEBUG: Monitor relative: ({monitor_relative_x}, {monitor_relative_y})")
-                    print(f"DEBUG: Monitor info: {monitor_info}")
-                    print(f"DEBUG: Screenshot size: {screenshot.size}")
-                    print(f"DEBUG: ADJUSTED crop region: ({x1}, {y1}) to ({x2}, {y2})")
-                    print(f"DEBUG: RAW crop region: ({raw_x1}, {raw_y1}) to ({raw_x2}, {raw_y2})")
-                    
-                    # Show all monitor details for debugging
-                    if 'monitors' in screen_info:
-                        print(f"DEBUG: All monitors ({len(screen_info['monitors'])} total):")
-                        for mon in screen_info['monitors']:
-                            aspect = mon.get('aspect_ratio', 'unknown')
-                            orientation = "Portrait" if mon.get('is_portrait', False) else "Landscape"
-                            print(f"  Monitor {mon['id']}: {mon['width']}x{mon['height']} at ({mon['left']}, {mon['top']}) - {orientation} (AR: {aspect})")
-                    
-                    # Show which monitor was actually captured
-                    captured_monitor_id = monitor_info.get('id', 'unknown') if monitor_info else 'unknown'
-                    print(f"DEBUG: Captured from Monitor {captured_monitor_id}")
-                    
-                    # Calculate what the coordinates should be if we didn't apply any offset
-                    raw_pct_x = event.x / screen_info['width']
-                    raw_pct_y = event.y / screen_info['height']
-                    raw_screenshot_x = int(raw_pct_x * screenshot.size[0])
-                    raw_screenshot_y = int(raw_pct_y * screenshot.size[1])
-                    print(f"DEBUG: Raw percentage coords: ({raw_pct_x:.3f}, {raw_pct_y:.3f})")
-                    print(f"DEBUG: Raw screenshot coords (no offset): ({raw_screenshot_x}, {raw_screenshot_y})")
-                    print(f"DEBUG: Adjusted screenshot coords (with offset): ({screenshot_click_x}, {screenshot_click_y})")
-                    
-                except Exception as e:
-                    print(f"DEBUG: Error saving debug image: {e}")
-            
-            # Add debug marker to screenshot if in debug mode using percentage coordinates
-            if self.debug_mode:
-                screenshot = self.screen_capture.add_debug_click_marker(
-                    screenshot, x_pct=x_pct, y_pct=y_pct, marker_size=8, color="blue"
-                )
-            
-            # Generate step description
-            description = self._generate_click_description(event, ocr_result)
-            
-            # Create tutorial step
-            self.current_session.step_counter += 1
-            step_number = self.current_session.step_counter
-            
-            # Save screenshot (with debug marker if enabled)
-            screenshot_path = self.storage.save_screenshot(
-                self.current_session.tutorial_id, 
-                screenshot, 
-                step_number
-            )
-            
-            # Create step
-            step = TutorialStep(
-                step_id=f"step_{step_number}",
-                timestamp=event.timestamp,
-                step_number=step_number,
-                description=description,
-                screenshot_path=screenshot_path,
-                event_data={'x': event.x, 'y': event.y, 'button': event.button},
-                ocr_text=ocr_result.cleaned_text if ocr_result.is_valid() else None,
-                ocr_confidence=ocr_result.confidence if ocr_result.is_valid() else 0.0,
-                coordinates=(event.x, event.y),
-                coordinates_pct=(x_pct, y_pct),  # Store percentage coordinates
-                screen_dimensions=(screen_width, screen_height),  # Store screen dimensions at capture time
-                step_type="click"
-            )
-            
-            # Save step
-            self.storage.save_tutorial_step(self.current_session.tutorial_id, step)
-            
-            print(f"Step {step_number}: {description}")
-            
-        except Exception as e:
-            print(f"Error processing mouse click: {e}")
+            coordinate_info = {
+                'screen_width': screen_width,
+                'screen_height': screen_height,
+                'monitor_relative_x': monitor_relative_x,
+                'monitor_relative_y': monitor_relative_y,
+                'monitor_info': monitor_info
+            }
+        
+        # Add to event queue with captured screenshot and coordinate info
+        self.event_queue.add_mouse_click(event, screenshot, coordinate_info)
+        
+        if self.debug_mode:
+            print(f"DEBUG: Queued mouse click at ({event.x}, {event.y}) with screenshot and coordinates")
     
     def _on_keyboard_event(self, event: KeyPressEvent):
-        """Handle keyboard events"""
+        """Handle keyboard events - add to queue during recording"""
         if not self.current_session or not self.current_session.is_recording():
             return
         
-        # Double-check session status in case it changed during event processing
-        if not self.current_session or self.current_session.status == "stopped":
-            return
+        # Simply add to event queue - no processing during recording
+        self.event_queue.add_keyboard_event(event)
         
-        # Ignore events that occurred before or very close to when stop was called
-        if self.stop_timestamp and event.timestamp <= self.stop_timestamp + 0.1:  # 100ms grace period
-            return
-        
-        try:
-            # Skip very rapid consecutive events (debouncing)
-            if (event.timestamp - self.current_session.last_event_time) < 0.05:
-                return
-            self.current_session.last_event_time = event.timestamp
-            
-            # Handle different types of keyboard events
-            if event.event_type == EventType.TEXT_INPUT:
-                # This is a text input session
-                description = f'Type "{event.key.replace("TEXT:", "")}"'
-                step_type = "type"
-            elif event.is_special:
-                # Special key
-                description = f'Press {event.key}'
-                step_type = "key"
-            else:
-                # Regular character - might be part of larger text input
-                # For now, treat single characters as individual keystrokes
-                description = f'Type "{event.key}"'
-                step_type = "type"
-            
-            # Create tutorial step for significant keyboard events
-            if event.is_special or event.event_type == EventType.TEXT_INPUT:
-                # Take screenshot for special keys and text input sessions (use primary monitor)
-                screenshot = self.screen_capture.capture_full_screen(monitor_id=1)
-                
-                self.current_session.step_counter += 1
-                step_number = self.current_session.step_counter
-                
-                # Save screenshot
-                screenshot_path = None
-                if screenshot:
-                    screenshot_path = self.storage.save_screenshot(
-                        self.current_session.tutorial_id, 
-                        screenshot, 
-                        step_number
-                    )
-                
-                # Create step
-                step = TutorialStep(
-                    step_id=f"step_{step_number}",
-                    timestamp=event.timestamp,
-                    step_number=step_number,
-                    description=description,
-                    screenshot_path=screenshot_path,
-                    event_data={'key': event.key, 'is_special': event.is_special},
-                    step_type=step_type
-                )
-                
-                # Save step
-                self.storage.save_tutorial_step(self.current_session.tutorial_id, step)
-                
-                print(f"Step {step_number}: {description}")
-            
-        except Exception as e:
-            print(f"Error processing keyboard event: {e}")
+        if self.debug_mode:
+            print(f"DEBUG: Queued keyboard event '{event.key}'")
     
-    def _generate_click_description(self, event: MouseClickEvent, ocr_result: OCRResult) -> str:
-        """Generate a human-readable description for a click event"""
-        if ocr_result.is_valid() and ocr_result.cleaned_text:
-            text = ocr_result.cleaned_text.strip()
-            
-            # Handle different types of OCR results
-            if ocr_result.engine == "context_analysis":
-                # Context-inferred descriptions
-                return f'Click on {text}'
-            elif len(text) <= 2:
-                # Very short text might be a symbol or single character
-                return f'Click on "{text}" element'
-            else:
-                # Normal text result
-                return f'Click on "{text}"'
-        else:
-            # No OCR text - use coordinates with enhanced description
-            return f'Click at position ({event.x}, {event.y})'
+    def _process_queued_events(self):
+        """Process all queued events into tutorial steps using EventProcessor"""
+        if not self.current_session:
+            return
+        
+        # Get events from queue
+        events = self.event_queue.get_events_for_processing()
+        
+        if not events:
+            print("No events to process")
+            self.event_queue.complete_processing()
+            return
+        
+        # Use EventProcessor to convert events to tutorial steps
+        steps_created = self.event_processor.process_events_to_steps(
+            events, 
+            self.current_session.tutorial_id, 
+            self.current_session
+        )
+        
+        # Save raw events to events.json
+        self.event_processor.save_raw_events(events, self.current_session.tutorial_id)
+        
+        # Complete processing
+        self.event_queue.complete_processing()
+        print(f"Tutorial processing complete. Created {steps_created} tutorial steps")
     
     def list_tutorials(self) -> List[TutorialMetadata]:
         """List all available tutorials"""
@@ -552,6 +378,7 @@ class TutorialMakerApp:
         """Toggle debug mode on/off"""
         self.debug_mode = not self.debug_mode
         self.screen_capture.set_debug_mode(self.debug_mode)
+        self.event_processor.debug_mode = self.debug_mode
         return self.debug_mode
     
     def start_web_server(self) -> str:

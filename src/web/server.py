@@ -14,6 +14,7 @@ import webbrowser
 import threading
 import time
 from datetime import datetime
+import logging
 
 from ..core.storage import TutorialStorage, TutorialMetadata, TutorialStep
 from ..core.exporters import TutorialExporter
@@ -44,6 +45,13 @@ class TutorialWebServer:
                         template_folder=str(Path(__file__).parent / "templates"),
                         static_folder=str(Path(__file__).parent / "static"))
         CORS(self.app)  # Enable CORS for localhost development
+
+        # Configure logging to skip status endpoint
+        class StatusEndpointFilter(logging.Filter):
+            def filter(self, record):
+                return 'GET /api/recording/status' not in record.getMessage()
+
+        logging.getLogger('werkzeug').addFilter(StatusEndpointFilter())
         
         # Set up template filters
         self._setup_template_filters()
@@ -352,20 +360,29 @@ class TutorialWebServer:
         @self.app.route('/api/recording/new', methods=['POST'])
         def api_new_recording():
             """API: Create new recording session"""
+            print(f"DEBUG: api_new_recording called")
+            
             if not self.app_instance:
+                print(f"ERROR: No app instance connected")
                 return jsonify({'error': 'No app instance connected'}), 500
             
             data = request.get_json()
             title = data.get('title', '') if data else ''
             description = data.get('description', '') if data else ''
             
+            print(f"DEBUG: Creating tutorial with title='{title}', description='{description}'")
+
             try:
                 tutorial_id = self.app_instance.new_tutorial(title, description)
+                print(f"DEBUG: Successfully created tutorial with ID: {tutorial_id}")
                 return jsonify({
                     'success': True,
                     'tutorial_id': tutorial_id
                 })
             except Exception as e:
+                print(f"ERROR: Failed to create tutorial: {e}")
+                import traceback
+                traceback.print_exc()
                 return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/recording/start', methods=['POST'])
@@ -422,6 +439,105 @@ class TutorialWebServer:
                     })
                 else:
                     return jsonify({'error': 'No active recording session'}), 400
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/recording/toggle-keystroke-filter', methods=['POST'])
+        def api_toggle_keystroke_filter():
+            """API: Toggle keystroke filtering on/off"""
+            try:
+                if self.app_instance:
+                    enabled = self.app_instance.toggle_keystroke_filtering()
+                    return jsonify({
+                        'success': True,
+                        'enabled': enabled
+                    })
+                else:
+                    return jsonify({'error': 'App not available'}), 500
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/recording/monitors')
+        def api_get_monitors():
+            """API: Get available monitors for selection"""
+            try:
+                if self.app_instance:
+                    screen_info = self.app_instance.screen_capture.get_screen_info()
+                    monitors = screen_info.get('monitors', [])
+                    
+                    # Generate thumbnails for each monitor
+                    monitor_data = []
+                    for monitor in monitors:
+                        try:
+                            # Capture small thumbnail
+                            screenshot = self.app_instance.screen_capture.capture_full_screen(monitor_id=monitor['id'])
+                            if screenshot:
+                                # Create small thumbnail for web display
+                                from PIL import Image
+                                import base64
+                                import io
+                                
+                                # Resize to small thumbnail
+                                thumbnail_size = (200, 150)
+                                img_width, img_height = screenshot.size
+                                scale = min(thumbnail_size[0] / img_width, thumbnail_size[1] / img_height)
+                                new_size = (int(img_width * scale), int(img_height * scale))
+                                
+                                thumbnail = screenshot.resize(new_size, Image.Resampling.LANCZOS)
+                                
+                                # Convert to base64 for web display
+                                buffer = io.BytesIO()
+                                thumbnail.save(buffer, format='PNG')
+                                img_data = base64.b64encode(buffer.getvalue()).decode()
+                                
+                                monitor_data.append({
+                                    'id': monitor['id'],
+                                    'width': monitor['width'],
+                                    'height': monitor['height'],
+                                    'left': monitor['left'],
+                                    'top': monitor['top'],
+                                    'thumbnail': f"data:image/png;base64,{img_data}"
+                                })
+                        except Exception as e:
+                            print(f"Failed to capture monitor {monitor['id']}: {e}")
+                            # Add monitor without thumbnail
+                            monitor_data.append({
+                                'id': monitor['id'],
+                                'width': monitor['width'],
+                                'height': monitor['height'],
+                                'left': monitor['left'],
+                                'top': monitor['top'],
+                                'thumbnail': None
+                            })
+                    
+                    return jsonify({
+                        'success': True,
+                        'monitors': monitor_data
+                    })
+                else:
+                    return jsonify({'error': 'App not available'}), 500
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/recording/select-monitor', methods=['POST'])
+        def api_select_monitor():
+            """API: Set selected monitor for recording"""
+            try:
+                data = request.get_json()
+                monitor_id = data.get('monitor_id')
+                
+                if monitor_id is None:
+                    return jsonify({'error': 'monitor_id required'}), 400
+                
+                if self.app_instance:
+                    # Store selected monitor for next tutorial creation
+                    self.app_instance.selected_monitor_id = int(monitor_id)
+                    return jsonify({
+                        'success': True,
+                        'selected_monitor': monitor_id
+                    })
+                else:
+                    return jsonify({'error': 'App not available'}), 500
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
     

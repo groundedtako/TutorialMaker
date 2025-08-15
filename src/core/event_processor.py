@@ -120,6 +120,9 @@ class EventProcessor:
                     screenshot, x_pct=x_pct, y_pct=y_pct, marker_size=8, color="blue"
                 )
             
+            # Store screenshot for reuse by subsequent keyboard events
+            self._last_screenshot = screenshot
+            
             # Generate step description
             description = self._generate_click_description(event, ocr_result)
             
@@ -181,8 +184,38 @@ class EventProcessor:
             
             # Create tutorial step for significant keyboard events
             if event.is_special or event.event_type == EventType.TEXT_INPUT:
-                # Take screenshot for special keys and text input sessions
-                screenshot = self.screen_capture.capture_full_screen(monitor_id=1)
+                # Reuse last screenshot instead of capturing new one
+                # This matches SCRIBE's approach and is more efficient
+                screenshot = getattr(self, '_last_screenshot', None)
+                
+                # Fallback: capture screenshot of selected monitor or detect from mouse position
+                if screenshot is None:
+                    try:
+                        target_monitor = 1  # Default to primary monitor
+                        
+                        # Check if session has a selected monitor
+                        if hasattr(session, 'selected_monitor') and session.selected_monitor:
+                            target_monitor = session.selected_monitor
+                        else:
+                            # Get current mouse position to determine which monitor to capture
+                            from pynput.mouse import Controller as MouseController
+                            mouse = MouseController()
+                            mouse_x, mouse_y = mouse.position
+                            
+                            # Find which monitor contains the mouse cursor
+                            screen_info = self.screen_capture.get_screen_info()
+                            monitors = screen_info.get('monitors', [])
+                            
+                            for monitor in monitors:
+                                if (monitor['left'] <= mouse_x < monitor['left'] + monitor['width'] and 
+                                    monitor['top'] <= mouse_y < monitor['top'] + monitor['height']):
+                                    target_monitor = monitor['id']
+                                    break
+                        
+                        screenshot = self.screen_capture.capture_full_screen(monitor_id=target_monitor)
+                    except Exception as e:
+                        print(f"EventProcessor: Error detecting monitor, using primary: {e}")
+                        screenshot = self.screen_capture.capture_full_screen(monitor_id=1)
                 
                 # Use provided step number (don't increment session counter again)
                 

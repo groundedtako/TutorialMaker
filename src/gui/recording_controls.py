@@ -21,6 +21,7 @@ class RecordingControlWindow:
         self.main_window = main_window
         self.window: Optional[tk.Toplevel] = None
         self.is_visible = False
+        self.debug_mode = getattr(app, 'debug_mode', False)
         
         # Control variables
         self.step_count_var = tk.StringVar(value="0")
@@ -38,7 +39,8 @@ class RecordingControlWindow:
         
         self.window = tk.Toplevel(self.main_window.root)
         self.window.title("Recording Controls")
-        self.window.geometry("320x140")
+        # Initial size - will be adjusted after widgets are created
+        self.window.geometry("320x180")
         self.window.resizable(True, True)
         
         # Make window stay on top
@@ -50,14 +52,14 @@ class RecordingControlWindow:
         except:
             pass
         
-        # Position window in top-right corner
-        self.window.geometry("+{}+{}".format(
-            self.window.winfo_screenwidth() - 320,
-            50
-        ))
-        
         self._create_widgets()
         self._setup_bindings()
+        
+        # Dynamically size window to fit content
+        self._auto_size_window()
+        
+        # Position window in top-right corner after sizing
+        self._position_window()
         
         # Start update timer
         self._start_updates()
@@ -118,7 +120,67 @@ class RecordingControlWindow:
                                   command=self._stop_recording, width=8)
         self.stop_btn.pack(side=tk.LEFT, padx=(0, 5))
         
+        # Keystroke filtering toggle
+        filter_frame = ttk.Frame(main_frame)
+        filter_frame.pack(fill=tk.X, pady=(8, 0))
+        
+        self.keystroke_filter_var = tk.BooleanVar()
+        self.keystroke_filter_check = ttk.Checkbutton(
+            filter_frame, 
+            text="Filter keystrokes (clicks only)",
+            variable=self.keystroke_filter_var,
+            command=self._toggle_keystroke_filtering
+        )
+        self.keystroke_filter_check.pack(side=tk.LEFT)
+        
         # Removed minimize button - users can move the panel or use system tray instead
+    
+    def _auto_size_window(self):
+        """Automatically size window to fit all content"""
+        if not self.window:
+            return
+        
+        # Update window to calculate required size
+        self.window.update_idletasks()
+        
+        # Get the required width and height from the main frame
+        main_frame = self.window.winfo_children()[0] if self.window.winfo_children() else None
+        if main_frame:
+            main_frame.update_idletasks()
+            
+            # Get required size with some padding
+            req_width = main_frame.winfo_reqwidth() + 20  # Add padding
+            req_height = main_frame.winfo_reqheight() + 40  # Add padding for title bar
+            
+            # Set minimum and maximum sizes
+            min_width, max_width = 300, 400
+            min_height, max_height = 160, 300
+            
+            # Constrain to reasonable bounds
+            final_width = max(min_width, min(max_width, req_width))
+            final_height = max(min_height, min(max_height, req_height))
+            
+            # Apply the new size
+            self.window.geometry(f"{final_width}x{final_height}")
+            
+            if self.debug_mode:
+                print(f"Auto-sized recording controls: {final_width}x{final_height} (required: {req_width}x{req_height})")
+    
+    def _position_window(self):
+        """Position window in top-right corner of screen"""
+        if not self.window:
+            return
+        
+        # Get window dimensions
+        self.window.update_idletasks()
+        window_width = self.window.winfo_width()
+        screen_width = self.window.winfo_screenwidth()
+        
+        # Position in top-right corner with some margin
+        x_pos = screen_width - window_width - 20
+        y_pos = 50
+        
+        self.window.geometry(f"+{x_pos}+{y_pos}")
     
     def _setup_bindings(self):
         """Set up event bindings"""
@@ -176,6 +238,21 @@ class RecordingControlWindow:
             y = self.window.winfo_y() + (event.y - self.drag_start_y)
             self.window.geometry(f"+{x}+{y}")
     
+    def _toggle_keystroke_filtering(self):
+        """Toggle keystroke filtering on/off"""
+        try:
+            enabled = self.app.toggle_keystroke_filtering()
+            status = "enabled" if enabled else "disabled"
+            print(f"Keystroke filtering {status}")
+            
+            # Update checkbox to reflect actual state
+            self.keystroke_filter_var.set(enabled)
+            
+        except Exception as e:
+            print(f"Failed to toggle keystroke filtering: {e}")
+            # Revert checkbox state on error
+            self.keystroke_filter_var.set(not self.keystroke_filter_var.get())
+    
     def _start_updates(self):
         """Start periodic updates of recording stats"""
         if self.window and self.is_visible:
@@ -229,6 +306,11 @@ class RecordingControlWindow:
             self.window.deiconify()
             self.window.lift()
             self.is_visible = True
+            
+            # Ensure proper sizing when showing
+            self.window.after(100, self._auto_size_window)
+            self.window.after(150, self._position_window)
+            
             self._start_updates()
     
     def hide(self):
@@ -247,7 +329,7 @@ class RecordingControlWindow:
         if self.window and self.is_visible:
             # Update final stats
             self.step_count_var.set(str(final_step_count))
-            self.status_var.set("✅ Completed")
+            self.status_var.set("SUCCESS: Completed")
             
             # Truncate tutorial name if too long
             if len(tutorial_name) > 25:
@@ -256,6 +338,9 @@ class RecordingControlWindow:
             
             # Stop blinking indicator
             self._draw_indicator(recording=False)
+            
+            # Adjust window size for completion message
+            self.window.after(50, self._auto_size_window)
             
             # Stop updates
             if self.update_timer:

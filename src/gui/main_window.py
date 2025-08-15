@@ -95,6 +95,19 @@ class MainWindow:
                                   command=self._stop_recording, state='disabled')
         self.stop_btn.pack(side=tk.LEFT, padx=(0, 10))
         
+        # Keystroke filtering toggle
+        filter_frame = ttk.Frame(control_frame)
+        filter_frame.grid(row=3, column=0, columnspan=2, pady=(10, 0), sticky="w")
+        
+        self.keystroke_filter_var = tk.BooleanVar()
+        self.keystroke_filter_check = ttk.Checkbutton(
+            filter_frame, 
+            text="Filter keystrokes (clicks only)",
+            variable=self.keystroke_filter_var,
+            command=self._toggle_keystroke_filtering
+        )
+        self.keystroke_filter_check.pack(side=tk.LEFT)
+        
         # Tutorials list
         list_frame = ttk.LabelFrame(main_frame, text="Your Tutorials", padding="15")
         list_frame.grid(row=2, column=0, columnspan=2, sticky="nsew")
@@ -230,6 +243,21 @@ class MainWindow:
         self.stop_btn.config(state='disabled')
         self.new_btn.config(state='normal')
         self.tutorial_name_var.set("")
+    
+    def _toggle_keystroke_filtering(self):
+        """Toggle keystroke filtering on/off"""
+        try:
+            enabled = self.app.toggle_keystroke_filtering()
+            status = "enabled" if enabled else "disabled"
+            print(f"Keystroke filtering {status}")
+            
+            # Update checkbox to reflect actual state
+            self.keystroke_filter_var.set(enabled)
+            
+        except Exception as e:
+            print(f"Failed to toggle keystroke filtering: {e}")
+            # Revert checkbox state on error
+            self.keystroke_filter_var.set(not self.keystroke_filter_var.get())
     
     def _show_recording_controls(self):
         """Show floating recording control window"""

@@ -24,7 +24,7 @@ class SessionState(Enum):
 class RecordingSession:
     """Manages a single recording session"""
     
-    def __init__(self, tutorial_id: str, title: str = ""):
+    def __init__(self, tutorial_id: str, title: str = "", selected_monitor: Optional[int] = None):
         self.tutorial_id = tutorial_id
         self.title = title
         self.status = SessionState.STOPPED
@@ -33,6 +33,7 @@ class RecordingSession:
         self.total_pause_duration = 0.0
         self.step_counter = 0
         self.last_event_time = 0.0
+        self.selected_monitor = selected_monitor  # Monitor to record on
         
     def start(self):
         """Start recording"""
@@ -83,6 +84,32 @@ class RecordingSession:
             pause_time += current_time - self.pause_start_time
         
         return max(0.0, total_time - pause_time)
+    
+    def is_event_on_selected_monitor(self, x: int, y: int, monitor_info: list) -> bool:
+        """
+        Check if an event at (x, y) is on the selected monitor
+        
+        Args:
+            x, y: Global coordinates of the event
+            monitor_info: List of monitor information dicts
+            
+        Returns:
+            True if event is on selected monitor or no monitor selected
+        """
+        if self.selected_monitor is None:
+            return True  # No monitor selected, accept all events
+        
+        # Find the monitor that contains this point
+        for monitor in monitor_info:
+            if monitor['id'] == self.selected_monitor:
+                left = monitor['left']
+                top = monitor['top']
+                right = left + monitor['width']
+                bottom = top + monitor['height']
+                
+                return left <= x < right and top <= y < bottom
+        
+        return False  # Selected monitor not found, reject event
 
 
 class SessionManager:
@@ -100,13 +127,14 @@ class SessionManager:
         # Current session
         self.current_session: Optional[RecordingSession] = None
     
-    def create_session(self, tutorial_id: str, title: str = "") -> RecordingSession:
+    def create_session(self, tutorial_id: str, title: str = "", selected_monitor: Optional[int] = None) -> RecordingSession:
         """
         Create a new recording session
         
         Args:
             tutorial_id: Unique identifier for the tutorial
             title: Tutorial title
+            selected_monitor: Monitor ID to record on (None = auto-detect)
             
         Returns:
             RecordingSession instance
@@ -118,10 +146,11 @@ class SessionManager:
                 self.stop_recording()
         
         # Create new session
-        self.current_session = RecordingSession(tutorial_id, title)
+        self.current_session = RecordingSession(tutorial_id, title, selected_monitor)
         
         if self.debug_mode:
-            print(f"DEBUG: Created new session for tutorial '{title}' (ID: {tutorial_id})")
+            monitor_text = f" (Monitor {selected_monitor})" if selected_monitor else " (Auto-detect monitor)"
+            print(f"DEBUG: Created new session for tutorial '{title}' (ID: {tutorial_id}){monitor_text}")
         
         return self.current_session
     

@@ -114,6 +114,7 @@ class UnifiedServer:
                 print("🚀 Starting with full recording support")
                 from src.core.app import TutorialMakerApp
                 self.app = TutorialMakerApp(debug_mode=self.args.debug)
+                self.app.web_mode = True
                 self.server = self.app.web_server
                 self.server.port = self.args.port
             else:

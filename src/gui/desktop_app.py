@@ -51,11 +51,11 @@ class TutorialMakerDesktopApp:
             # Initialize global hotkeys
             self._setup_hotkeys()
             
-            print("✅ TutorialMaker Desktop initialized successfully")
+            print("SUCCESS: TutorialMaker Desktop initialized successfully")
             
         except Exception as e:
             error_msg = f"Failed to initialize TutorialMaker: {e}"
-            print(f"❌ {error_msg}")
+            print(f"ERROR: {error_msg}")
             if hasattr(tk, 'Tk'):
                 root = tk.Tk()
                 root.withdraw()
@@ -136,14 +136,14 @@ class TutorialMakerDesktopApp:
             # Start system tray
             if self.tray_manager and self.tray_manager.is_available():
                 self.tray_manager.start()
-                print("✅ System tray started")
+                print("SUCCESS: System tray started")
             else:
-                print("⚠️  System tray not available")
+                print("WARNING: System tray not available")
             
             # Start hotkey manager
             if self.hotkey_manager:
                 self.hotkey_manager.start()
-                print("✅ Global hotkeys registered")
+                print("SUCCESS: Global hotkeys registered")
             
             # Show or hide main window based on settings
             if not self.start_minimized:
@@ -151,20 +151,20 @@ class TutorialMakerDesktopApp:
             else:
                 self.main_window.hide()
                 if self.tray_manager and self.tray_manager.is_available():
-                    print("🔻 Started minimized to system tray")
+                    print("Started minimized to system tray")
                 else:
                     # If no tray, must show window
                     self.main_window.show()
-                    print("ℹ️  System tray not available, showing main window")
+                    print("INFO: System tray not available, showing main window")
             
             # Start main event loop
-            print("🚀 TutorialMaker Desktop is ready!")
+            print("TutorialMaker Desktop is ready!")
             self.main_window.run()
             
         except KeyboardInterrupt:
-            print("\\n🛑 Shutting down...")
+            print("\\nShutting down...")
         except Exception as e:
-            print(f"❌ Application error: {e}")
+            print(f"ERROR: Application error: {e}")
         finally:
             self.cleanup()
     
@@ -199,7 +199,7 @@ class TutorialMakerDesktopApp:
             if self.core_app:
                 self.core_app.shutdown()
             
-            print("✅ Cleanup completed")
+            print("SUCCESS: Cleanup completed")
             
         except Exception as e:
             print(f"Error during cleanup: {e}")

@@ -68,6 +68,11 @@ class TutorialMakerApp:
         self.processing_thread = None
         self.running = False
         
+        # Selected monitor for recording (used by web interface)
+        self.selected_monitor_id: Optional[int] = None
+        # Flag to indicate if we're in web mode (to avoid GUI dialogs)
+        self.web_mode: bool = False
+        
         print("TutorialMaker initialized successfully")
         self._print_status()
     
@@ -88,28 +93,123 @@ class TutorialMakerApp:
         print(f"  OCR: Tesseract={ocr_stats['tesseract_available']}, EasyOCR={ocr_stats['easyocr_available']}")
         print(f"  Storage: {storage_stats['total_tutorials']} tutorials, {storage_stats['total_size_mb']}MB")
     
-    def new_tutorial(self, title: str = None, description: str = "") -> str:
+    def select_recording_monitor(self) -> Optional[int]:
+        """
+        Show screen selection dialog for choosing recording monitor
+        Returns selected monitor ID or None if cancelled
+        """
+        try:
+            # Try to import GUI components
+            from ..gui.screen_selector import show_screen_selector
+            import tkinter as tk
+            
+            # Check if we're in a GUI-capable environment
+            if not hasattr(tk, '_default_root') and not tk._default_root:
+                # Try to create a root window to test GUI availability
+                try:
+                    test_root = tk.Tk()
+                    test_root.withdraw()
+                    test_root.destroy()
+                except tk.TclError:
+                    # No display available - we're in headless mode
+                    raise Exception("No display available (headless environment)")
+            
+            # Create temporary root if none exists
+            root = tk._default_root
+            if root is None:
+                root = tk.Tk()
+                root.withdraw()
+                created_root = True
+            else:
+                created_root = False
+            
+            # Show screen selector
+            selected_monitor = show_screen_selector(root, self.screen_capture)
+            
+            # Clean up temporary root
+            if created_root:
+                root.destroy()
+            
+            return selected_monitor
+            
+        except (ImportError, tk.TclError, Exception) as e:
+            # GUI not available or error occurred
+            print(f"Screen selector not available: {e}")
+            return 1  # Default to primary monitor
+    
+    def new_tutorial(self, title: str = None, description: str = "", selected_monitor: Optional[int] = None) -> str:
         """
         Create a new tutorial
         
         Args:
             title: Optional title for the tutorial
             description: Optional description
+            selected_monitor: Monitor ID to record on (None = prompt user)
             
         Returns:
             Tutorial ID
         """
+        print(f"DEBUG: new_tutorial called with title='{title}', selected_monitor={selected_monitor}")
+        
         # Create new tutorial project
         tutorial_id = self.storage.create_tutorial_project(title, description)
+        print(f"DEBUG: Created tutorial project with ID: {tutorial_id}")
         
         # Get the actual title that was saved (in case it was auto-generated)
         metadata = self.storage.load_tutorial_metadata(tutorial_id)
         actual_title = metadata.title if metadata else (title or f"Tutorial {tutorial_id[:8]}")
         
-        # Create new session using SessionManager
-        session = self.session_manager.create_session(tutorial_id, actual_title)
+        # If no monitor selected, check if one was set via web interface or show selector
+        if selected_monitor is None:
+            print(f"DEBUG: No monitor selected, checking options...")
+            # Check if monitor was pre-selected (e.g., via web interface)
+            if self.selected_monitor_id is not None:
+                selected_monitor = self.selected_monitor_id
+                print(f"DEBUG: Using pre-selected monitor {selected_monitor}")
+            else:
+                print(f"DEBUG: No pre-selected monitor, checking if GUI is available...")
+                
+                # Check if we're in web mode (avoid GUI dialogs)
+                if self.web_mode:
+                    print(f"DEBUG: Web mode detected, defaulting to primary monitor")
+                    selected_monitor = 1
+                else:
+                    print(f"DEBUG: Desktop environment, checking screen count...")
+                    # Try to show screen selector if GUI is available
+                    try:
+                        screen_info = self.screen_capture.get_screen_info()
+                        monitor_count = screen_info.get('monitor_count', 1)
+                        print(f"DEBUG: Found {monitor_count} monitors")
+                        
+                        if monitor_count > 1:
+                            # Multiple monitors - try to show selector, but handle gracefully if it fails
+                            print(f"DEBUG: Multiple monitors detected, trying to show selector...")
+                            try:
+                                selected_monitor = self.select_recording_monitor()
+                                if selected_monitor is None:
+                                    print("DEBUG: Screen selection cancelled, using primary monitor")
+                                    selected_monitor = 1
+                                else:
+                                    print(f"DEBUG: User selected monitor {selected_monitor}")
+                            except Exception as selector_error:
+                                print(f"DEBUG: Screen selector failed: {selector_error}, using primary monitor")
+                                selected_monitor = 1
+                        else:
+                            # Single monitor - use primary
+                            print(f"DEBUG: Single monitor setup, using primary")
+                            selected_monitor = 1
+                    except Exception as e:
+                        print(f"DEBUG: Screen info failed: {e}, using primary monitor")
+                        selected_monitor = 1
         
-        print(f"New tutorial created: {session.title}")
+        # Create new session using SessionManager
+        print(f"DEBUG: Creating session with monitor {selected_monitor}")
+        session = self.session_manager.create_session(tutorial_id, actual_title, selected_monitor)
+        print(f"DEBUG: Session created successfully")
+        
+        monitor_text = f" (Monitor {selected_monitor})" if selected_monitor else ""
+        print(f"New tutorial created: {session.title}{monitor_text}")
+        print(f"DEBUG: new_tutorial returning tutorial_id: {tutorial_id}")
         return tutorial_id
     
     def start_recording(self) -> bool:
@@ -158,6 +258,16 @@ class TutorialMakerApp:
         session = self.session_manager.current_session
         if not session or not session.is_recording():
             return
+        
+        # Check if event is on the selected monitor (ignore events on other monitors)
+        if session.selected_monitor is not None:
+            screen_info = self.screen_capture.get_screen_info()
+            monitors = screen_info.get('monitors', [])
+            
+            if not session.is_event_on_selected_monitor(event.x, event.y, monitors):
+                if self.debug_mode:
+                    print(f"DEBUG: Ignoring click at ({event.x}, {event.y}) - not on selected monitor {session.selected_monitor}")
+                return
         
         # Apply filtering (mainly for keystroke filtering and post-stop/pause filtering)
         if hasattr(self, 'event_filter'):
@@ -287,6 +397,8 @@ class TutorialMakerApp:
     def start_web_server(self) -> str:
         """Start the web server for editing tutorials"""
         try:
+            # Set web mode to avoid GUI dialogs when called from web interface
+            self.web_mode = True
             url = self.web_server.start(open_browser=True)
             print(f"✅ Web server started at {url}")
             print("You can now edit and manage your tutorials in the browser.")

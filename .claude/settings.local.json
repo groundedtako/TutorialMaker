@@ -13,7 +13,17 @@
       "Bash(\"venv/Scripts/python.exe\" --version)",
       "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.capture import ScreenCapture; print(''Syntax OK'')\")",
       "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; print(''App import OK'')\")",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; app = TutorialMakerApp(); print(''Initial state:'', app.event_filter.settings.filter_keystrokes); app.toggle_keystroke_filtering(); print(''After toggle:'', app.event_filter.settings.filter_keystrokes); app.toggle_keystroke_filtering(); print(''After second toggle:'', app.event_filter.settings.filter_keystrokes)\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; app = TutorialMakerApp(); print(''Initial state:'', app.event_filter.settings.filter_keystrokes); app.toggle_keystroke_filtering(); print(''After toggle:'', app.event_filter.settings.filter_keystrokes); app.toggle_keystroke_filtering(); print(''After second toggle:'', app.event_filter.settings.filter_keystrokes)\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.desktop_app import TutorialMakerDesktopApp; print(''Testing desktop app import...'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.capture import ScreenCapture; from src.core.event_processor import EventProcessor; from src.core.ocr import OCREngine; from src.core.smart_ocr import SmartOCRProcessor; from src.core.storage import TutorialStorage; sc = ScreenCapture(); ocr = OCREngine(); smart_ocr = SmartOCRProcessor(ocr); storage = TutorialStorage(); ep = EventProcessor(sc, ocr, smart_ocr, storage); print(''EventProcessor initialization successful''); print(''Has _last_screenshot attr:'', hasattr(ep, ''_last_screenshot''))\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.desktop_app import TutorialMakerDesktopApp; print(''Desktop app with keystroke filter checkbox - import successful'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.desktop_app import TutorialMakerDesktopApp; from src.gui.recording_controls import RecordingControlWindow; from src.core.app import TutorialMakerApp; print(''Testing dynamic recording controls sizing...'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.screen_selector import ScreenSelectorDialog; from src.core.capture import ScreenCapture; import tkinter as tk; print(''Screen selector components imported successfully'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; app = TutorialMakerApp(); print(''Testing monitor selection with web interface...'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.screen_selector import ScreenSelectorDialog; from src.core.capture import ScreenCapture; import tkinter as tk; print(''Screen selector components imported successfully'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; app = TutorialMakerApp(); app.web_mode = True; print(''Testing tutorial creation in web mode...''); tutorial_id = app.new_tutorial(''Test Tutorial''); print(f''Created tutorial: {tutorial_id}'')\")"
     ],
     "deny": [],
     "ask": []

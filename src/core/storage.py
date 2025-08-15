@@ -303,6 +303,30 @@ class TutorialStorage:
             print(f"Error deleting tutorial: {e}")
             return False
     
+    def delete_all_tutorials(self) -> Dict[str, bool]:
+        """
+        Delete all tutorials
+        
+        Returns:
+            Dictionary mapping tutorial IDs to success status
+        """
+        tutorials = self.list_tutorials()
+        results = {}
+        
+        for tutorial in tutorials:
+            try:
+                success = self.delete_tutorial(tutorial.tutorial_id)
+                results[tutorial.tutorial_id] = success
+                if success:
+                    print(f"Deleted tutorial: {tutorial.title} ({tutorial.tutorial_id})")
+                else:
+                    print(f"Failed to delete tutorial: {tutorial.title} ({tutorial.tutorial_id})")
+            except Exception as e:
+                print(f"Error deleting tutorial {tutorial.tutorial_id}: {e}")
+                results[tutorial.tutorial_id] = False
+        
+        return results
+    
     def update_tutorial_status(self, tutorial_id: str, status: str) -> bool:
         """Update tutorial status (recording, paused, completed)"""
         metadata = self.load_tutorial_metadata(tutorial_id)

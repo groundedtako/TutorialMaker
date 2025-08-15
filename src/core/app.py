@@ -346,6 +346,10 @@ class TutorialMakerApp:
         """Delete a tutorial"""
         return self.storage.delete_tutorial(tutorial_id)
     
+    def delete_all_tutorials(self) -> Dict[str, bool]:
+        """Delete all tutorials"""
+        return self.storage.delete_all_tutorials()
+    
     def get_tutorial_data(self, tutorial_id: str) -> Optional[Dict]:
         """Get complete tutorial data"""
         return self.storage.export_tutorial_data(tutorial_id)
@@ -363,17 +367,18 @@ class TutorialMakerApp:
         """
         return self.exporter.export_tutorial(tutorial_id, formats)
     
-    def export_all_tutorials(self, formats: List[str] = None) -> Dict[str, Dict[str, str]]:
+    def export_all_tutorials(self, formats: List[str] = None, max_workers: int = 3) -> Dict[str, Dict[str, str]]:
         """
-        Export all tutorials to specified formats
+        Export all tutorials to specified formats with concurrent processing
         
         Args:
             formats: List of formats to export
+            max_workers: Maximum number of concurrent export operations
             
         Returns:
             Dictionary mapping tutorial IDs to export results
         """
-        return self.exporter.export_all_tutorials(formats)
+        return self.exporter.export_all_tutorials(formats, max_workers)
     
     def toggle_debug_mode(self) -> bool:
         """Toggle debug mode on/off"""

@@ -320,6 +320,60 @@ class TutorialWebServer:
             else:
                 return jsonify({'error': 'Failed to delete tutorial'}), 500
         
+        @self.app.route('/api/tutorials/delete_all', methods=['POST'])
+        def api_delete_all_tutorials():
+            """API: Delete all tutorials"""
+            try:
+                results = self.storage.delete_all_tutorials()
+                success_count = sum(1 for success in results.values() if success)
+                total_count = len(results)
+                
+                return jsonify({
+                    'success': True,
+                    'results': results,
+                    'summary': {
+                        'total': total_count,
+                        'deleted': success_count,
+                        'failed': total_count - success_count
+                    }
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/tutorials/export_all', methods=['POST'])
+        def api_export_all_tutorials():
+            """API: Export all tutorials to specified formats"""
+            try:
+                data = request.get_json() or {}
+                formats = data.get('formats', ['html', 'word'])
+                max_workers = data.get('max_workers', 3)
+                
+                results = self.exporter.export_all_tutorials(formats, max_workers)
+                
+                # Calculate summary statistics
+                total_tutorials = len(results)
+                successful_exports = 0
+                failed_exports = 0
+                
+                for tutorial_results in results.values():
+                    if isinstance(tutorial_results, dict) and 'error' not in tutorial_results:
+                        successful_exports += 1
+                    else:
+                        failed_exports += 1
+                
+                return jsonify({
+                    'success': True,
+                    'results': results,
+                    'summary': {
+                        'total_tutorials': total_tutorials,
+                        'successful': successful_exports,
+                        'failed': failed_exports,
+                        'formats': formats
+                    }
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
         @self.app.route('/screenshots/<tutorial_id>/<filename>')
         def serve_screenshot(tutorial_id: str, filename: str):
             """Serve screenshot files"""

@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 from docx import Document
 from docx.shared import Inches
@@ -789,12 +791,13 @@ class TutorialExporter:
         
         return results
     
-    def export_all_tutorials(self, formats: List[str] = None) -> Dict[str, Dict[str, str]]:
+    def export_all_tutorials(self, formats: List[str] = None, max_workers: int = 3) -> Dict[str, Dict[str, str]]:
         """
-        Export all tutorials to specified formats
+        Export all tutorials to specified formats using concurrent processing
         
         Args:
             formats: List of formats to export
+            max_workers: Maximum number of concurrent export operations
             
         Returns:
             Dictionary mapping tutorial IDs to export results
@@ -802,11 +805,34 @@ class TutorialExporter:
         tutorials = self.storage.list_tutorials()
         results = {}
         
-        for tutorial in tutorials:
+        if not tutorials:
+            return results
+        
+        def export_single_tutorial(tutorial):
+            """Export a single tutorial - used by thread pool"""
             try:
-                results[tutorial.tutorial_id] = self.export_tutorial(tutorial.tutorial_id, formats)
+                return tutorial.tutorial_id, self.export_tutorial(tutorial.tutorial_id, formats)
             except Exception as e:
                 print(f"Failed to export tutorial {tutorial.tutorial_id}: {e}")
-                results[tutorial.tutorial_id] = {"error": str(e)}
+                return tutorial.tutorial_id, {"error": str(e)}
+        
+        # Use ThreadPoolExecutor for concurrent exports
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all export tasks
+            future_to_tutorial = {
+                executor.submit(export_single_tutorial, tutorial): tutorial 
+                for tutorial in tutorials
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_tutorial):
+                tutorial = future_to_tutorial[future]
+                try:
+                    tutorial_id, export_result = future.result()
+                    results[tutorial_id] = export_result
+                    print(f"Completed export for tutorial: {tutorial.title} ({tutorial_id})")
+                except Exception as e:
+                    print(f"Export task failed for tutorial {tutorial.tutorial_id}: {e}")
+                    results[tutorial.tutorial_id] = {"error": str(e)}
         
         return results

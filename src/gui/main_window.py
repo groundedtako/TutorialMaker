@@ -152,6 +152,12 @@ class MainWindow:
         ttk.Button(toolbar_frame, text="Refresh List", 
                   command=self._refresh_tutorials).pack(side=tk.LEFT)
         
+        ttk.Button(toolbar_frame, text="Export All", 
+                  command=self._export_all_tutorials).pack(side=tk.LEFT, padx=(10, 0))
+        
+        ttk.Button(toolbar_frame, text="Delete All", 
+                  command=self._delete_all_tutorials).pack(side=tk.LEFT, padx=(5, 0))
+        
         ttk.Button(toolbar_frame, text="Open Web Editor", 
                   command=self._open_web_editor).pack(side=tk.LEFT, padx=(10, 0))
         
@@ -382,6 +388,194 @@ class MainWindow:
         except Exception as e:
             print(f"Warning: Could not open settings: {e}")
             messagebox.showwarning("Settings", "Settings dialog not available in this version.")
+    
+    def _export_all_tutorials(self):
+        """Export all tutorials to multiple formats"""
+        tutorials = self.app.list_tutorials()
+        
+        if not tutorials:
+            messagebox.showinfo("No Tutorials", "No tutorials found to export.")
+            return
+        
+        # Show format selection dialog
+        from tkinter import simpledialog
+        
+        format_dialog = tk.Toplevel(self.root)
+        format_dialog.title("Export All Tutorials")
+        format_dialog.geometry("400x300")
+        format_dialog.transient(self.root)
+        format_dialog.grab_set()
+        
+        # Center the dialog
+        format_dialog.update_idletasks()
+        x = (format_dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (format_dialog.winfo_screenheight() // 2) - (300 // 2)
+        format_dialog.geometry(f"400x300+{x}+{y}")
+        
+        # Dialog content
+        tk.Label(format_dialog, text=f"Export {len(tutorials)} tutorial(s) to:", 
+                font=('Arial', 12, 'bold')).pack(pady=20)
+        
+        # Format checkboxes
+        format_vars = {}
+        formats = [('HTML', 'html'), ('Word Document', 'word'), ('PDF', 'pdf'), ('Markdown', 'markdown')]
+        
+        for display_name, format_key in formats:
+            var = tk.BooleanVar(value=format_key in ['html', 'word'])  # Default to HTML and Word
+            format_vars[format_key] = var
+            tk.Checkbutton(format_dialog, text=display_name, variable=var, 
+                          font=('Arial', 10)).pack(pady=5)
+        
+        # Buttons
+        button_frame = tk.Frame(format_dialog)
+        button_frame.pack(pady=20)
+        
+        result = {'cancelled': True}
+        
+        def on_export():
+            selected_formats = [k for k, v in format_vars.items() if v.get()]
+            if not selected_formats:
+                messagebox.showerror("No Formats", "Please select at least one export format.")
+                return
+            result['formats'] = selected_formats
+            result['cancelled'] = False
+            format_dialog.destroy()
+        
+        def on_cancel():
+            format_dialog.destroy()
+        
+        tk.Button(button_frame, text="Export", command=on_export, bg='#28a745', 
+                 fg='white', padx=20, pady=5).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Cancel", command=on_cancel, padx=20, pady=5).pack(side=tk.LEFT)
+        
+        # Wait for dialog
+        self.root.wait_window(format_dialog)
+        
+        if result['cancelled']:
+            return
+        
+        # Perform export
+        try:
+            formats = result['formats']
+            format_list = ', '.join(f.upper() for f in formats)
+            
+            # Show progress dialog
+            progress = tk.Toplevel(self.root)
+            progress.title("Exporting...")
+            progress.geometry("350x150")
+            progress.transient(self.root)
+            progress.grab_set()
+            progress.resizable(False, False)
+            
+            # Center progress dialog
+            progress.update_idletasks()
+            x = (progress.winfo_screenwidth() // 2) - (350 // 2)
+            y = (progress.winfo_screenheight() // 2) - (150 // 2)
+            progress.geometry(f"350x150+{x}+{y}")
+            
+            tk.Label(progress, text=f"Exporting {len(tutorials)} tutorials to {format_list}...", 
+                    font=('Arial', 10)).pack(pady=20)
+            tk.Label(progress, text="Please wait, this may take a while.", 
+                    font=('Arial', 9, 'italic')).pack()
+            
+            progress.update()
+            
+            def export_thread():
+                try:
+                    results = self.app.export_all_tutorials(formats, max_workers=3)
+                    
+                    # Close progress dialog
+                    progress.destroy()
+                    
+                    # Show results
+                    successful = sum(1 for r in results.values() if isinstance(r, dict) and 'error' not in r)
+                    total = len(results)
+                    failed = total - successful
+                    
+                    message = f"Export completed:\n\n"
+                    message += f"Total tutorials: {total}\n"
+                    message += f"Successfully exported: {successful}\n"
+                    message += f"Failed: {failed}\n\n"
+                    message += f"Formats: {format_list}"
+                    
+                    messagebox.showinfo("Export Complete", message)
+                    
+                except Exception as e:
+                    progress.destroy()
+                    messagebox.showerror("Export Failed", f"Failed to export tutorials: {e}")
+            
+            # Run export in background thread
+            threading.Thread(target=export_thread, daemon=True).start()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to start export: {e}")
+    
+    def _delete_all_tutorials(self):
+        """Delete all tutorials with confirmation"""
+        tutorials = self.app.list_tutorials()
+        
+        if not tutorials:
+            messagebox.showinfo("No Tutorials", "No tutorials found to delete.")
+            return
+        
+        # Double confirmation for safety
+        if not messagebox.askyesno("Confirm Delete All", 
+                                  f"Are you sure you want to delete ALL {len(tutorials)} tutorial(s)?\n\n"
+                                  "This action cannot be undone and will permanently remove:\n"
+                                  "• All tutorial data and metadata\n"
+                                  "• All screenshots and recordings\n"
+                                  "• All exported files (HTML, Word, PDF, etc.)\n\n"
+                                  "This is a destructive operation!"):
+            return
+        
+        # Final confirmation
+        if not messagebox.askyesno("Final Warning", 
+                                  "This is your FINAL warning.\n\n"
+                                  f"ALL {len(tutorials)} tutorials will be permanently deleted.\n\n"
+                                  "Are you absolutely certain you want to continue?"):
+            return
+        
+        try:
+            # Show progress
+            progress = tk.Toplevel(self.root)
+            progress.title("Deleting Tutorials...")
+            progress.geometry("300x100")
+            progress.transient(self.root)
+            progress.grab_set()
+            progress.resizable(False, False)
+            
+            # Center progress dialog
+            progress.update_idletasks()
+            x = (progress.winfo_screenwidth() // 2) - (300 // 2)
+            y = (progress.winfo_screenheight() // 2) - (100 // 2)
+            progress.geometry(f"300x100+{x}+{y}")
+            
+            tk.Label(progress, text=f"Deleting {len(tutorials)} tutorials...", 
+                    font=('Arial', 10)).pack(pady=30)
+            progress.update()
+            
+            # Delete all tutorials
+            results = self.app.delete_all_tutorials()
+            
+            progress.destroy()
+            
+            # Show results
+            successful = sum(1 for success in results.values() if success)
+            total = len(results)
+            failed = total - successful
+            
+            message = f"Delete operation completed:\n\n"
+            message += f"Total tutorials: {total}\n"
+            message += f"Successfully deleted: {successful}\n"
+            message += f"Failed: {failed}"
+            
+            # Refresh tutorial list
+            self._refresh_tutorials()
+            
+            messagebox.showinfo("Delete Complete", message)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to delete tutorials: {e}")
     
     def _on_closing(self):
         """Handle window closing"""

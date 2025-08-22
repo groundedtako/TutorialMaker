@@ -243,9 +243,21 @@ class TutorialMakerApp:
         Returns:
             Tutorial ID if successful, None otherwise
         """
-        # Remove last event from queue (likely the stop button click)
-        if hasattr(self, 'event_queue'):
-            self.event_queue.remove_last_event()
+        # Only remove last event if it's a recent mouse click (likely the stop button click)
+        if (hasattr(self, 'event_queue') and 
+            self.event_queue.events and 
+            self.event_queue.is_recording()):
+            
+            last_event = self.event_queue.events[-1]
+            # Only remove if it's a very recent mouse click (within last 2 seconds)
+            import time
+            if (last_event.event_type == 'mouse_click' and 
+                time.time() - last_event.timestamp < 2.0):
+                self.event_queue.remove_last_event()
+                if self.debug_mode:
+                    print("DEBUG: Removed stop button click from event queue")
+            elif self.debug_mode:
+                print(f"DEBUG: Keeping last event in queue ({last_event.event_type}, {time.time() - last_event.timestamp:.1f}s ago)")
         
         return self.session_manager.stop_recording()
     
@@ -392,9 +404,22 @@ class TutorialMakerApp:
     
     def toggle_keystroke_filtering(self) -> bool:
         """Toggle keystroke filtering on/off"""
-        # Remove last event from queue (likely the toggle button click or CLI command)
-        if hasattr(self, 'event_queue'):
-            self.event_queue.remove_last_event()
+        # Only remove last event if it's a recent mouse click (likely the toggle button click)
+        # This prevents accidentally removing important user events
+        if (hasattr(self, 'event_queue') and 
+            self.event_queue.events and 
+            self.event_queue.is_recording()):
+            
+            last_event = self.event_queue.events[-1]
+            # Only remove if it's a very recent mouse click (within last 2 seconds)
+            import time
+            if (last_event.event_type == 'mouse_click' and 
+                time.time() - last_event.timestamp < 2.0):
+                self.event_queue.remove_last_event()
+                if self.debug_mode:
+                    print("DEBUG: Removed toggle button click from event queue")
+            elif self.debug_mode:
+                print(f"DEBUG: Keeping last event in queue ({last_event.event_type}, {time.time() - last_event.timestamp:.1f}s ago)")
         
         enabled = self.event_filter.toggle_keystroke_filtering()
         return enabled

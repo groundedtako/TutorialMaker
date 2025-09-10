@@ -320,6 +320,127 @@ class TutorialWebServer:
             else:
                 return jsonify({'error': 'Failed to delete tutorial'}), 500
         
+        @self.app.route('/api/tutorials/delete_all', methods=['POST'])
+        def api_delete_all_tutorials():
+            """API: Delete all tutorials with detailed reporting"""
+            try:
+                # Get list of all tutorials
+                tutorials = self.storage.list_tutorials()
+                tutorial_count = len(tutorials)
+                
+                if tutorial_count == 0:
+                    return jsonify({
+                        'success': True,
+                        'deleted_count': 0,
+                        'failed_count': 0,
+                        'total_count': 0,
+                        'message': 'No tutorials to delete'
+                    })
+                
+                print(f"Starting bulk delete of {tutorial_count} tutorials...")
+                
+                deleted_count = 0
+                failed_count = 0
+                failures = []
+                
+                # Delete tutorials one by one with error tracking
+                for tutorial in tutorials:
+                    try:
+                        success = self.storage.delete_tutorial(tutorial.tutorial_id)
+                        if success:
+                            deleted_count += 1
+                            print(f"Deleted tutorial: {tutorial.title} ({tutorial.tutorial_id[:8]})")
+                        else:
+                            failed_count += 1
+                            failure_info = {
+                                'tutorial_id': tutorial.tutorial_id,
+                                'title': tutorial.title,
+                                'error': 'Delete operation returned false'
+                            }
+                            failures.append(failure_info)
+                            print(f"Failed to delete tutorial: {tutorial.title} - Delete operation returned false")
+                    except Exception as e:
+                        failed_count += 1
+                        failure_info = {
+                            'tutorial_id': tutorial.tutorial_id,
+                            'title': tutorial.title,
+                            'error': str(e)
+                        }
+                        failures.append(failure_info)
+                        print(f"Failed to delete tutorial: {tutorial.title} - Exception: {e}")
+                
+                # Prepare response
+                success = failed_count == 0
+                result = {
+                    'success': success,
+                    'deleted_count': deleted_count,
+                    'failed_count': failed_count,
+                    'total_count': tutorial_count,
+                    'message': f'Deleted {deleted_count} of {tutorial_count} tutorials'
+                }
+                
+                if failures:
+                    result['failures'] = failures
+                
+                print(f"Bulk delete completed: {deleted_count} successful, {failed_count} failed")
+                return jsonify(result)
+                
+            except Exception as e:
+                print(f"Bulk delete operation failed: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Bulk delete operation failed: {str(e)}'
+                }), 500
+        
+        @self.app.route('/api/tutorials/export_all', methods=['POST'])
+        def api_export_all_tutorials():
+            """API: Export all tutorials with optional concurrency"""
+            try:
+                data = request.get_json() or {}
+                formats = data.get('formats', ['html', 'word'])
+                use_concurrent = data.get('concurrent', True)
+                max_concurrent = data.get('max_concurrent', 3)
+                
+                print(f"Export all request: {len(formats)} formats, concurrent={use_concurrent}")
+                
+                if use_concurrent:
+                    # Use concurrent export with progress tracking
+                    results = self.exporter.export_all_tutorials_concurrent(
+                        formats=formats, 
+                        max_concurrent=max_concurrent
+                    )
+                else:
+                    # Use sequential export (original method)
+                    results = self.exporter.export_all_tutorials(formats=formats)
+                
+                # Count successes and failures
+                success_count = 0
+                error_count = 0
+                for tutorial_id, tutorial_results in results.items():
+                    if 'error' in tutorial_results:
+                        error_count += 1
+                    else:
+                        success_count += 1
+                
+                return jsonify({
+                    'success': True,
+                    'results': results,
+                    'summary': {
+                        'total': len(results),
+                        'successful': success_count,
+                        'failed': error_count,
+                        'concurrent': use_concurrent,
+                        'formats': formats
+                    }
+                })
+                
+            except Exception as e:
+                print(f"Export all operation failed: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Export all operation failed: {str(e)}'
+                }), 500
+        
         @self.app.route('/screenshots/<tutorial_id>/<filename>')
         def serve_screenshot(tutorial_id: str, filename: str):
             """Serve screenshot files"""

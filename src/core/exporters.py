@@ -810,3 +810,71 @@ class TutorialExporter:
                 results[tutorial.tutorial_id] = {"error": str(e)}
         
         return results
+    
+    def export_all_tutorials_concurrent(self, formats: List[str] = None, max_concurrent: int = 3, 
+                                       progress_callback=None) -> Dict[str, Dict[str, str]]:
+        """
+        Export all tutorials to specified formats using controlled concurrency
+        
+        Args:
+            formats: List of formats to export
+            max_concurrent: Maximum number of concurrent exports (default 3)
+            progress_callback: Optional callback function(current, total, tutorial_name)
+            
+        Returns:
+            Dictionary mapping tutorial IDs to export results
+        """
+        import asyncio
+        import concurrent.futures
+        import threading
+        from typing import Callable
+        
+        if formats is None:
+            formats = ['html', 'word']
+        
+        tutorials = self.storage.list_tutorials()
+        if not tutorials:
+            return {}
+        
+        print(f"Starting concurrent export of {len(tutorials)} tutorials with max_concurrent={max_concurrent}")
+        
+        results = {}
+        results_lock = threading.Lock()
+        
+        def export_single_tutorial(tutorial, index: int) -> tuple:
+            """Export a single tutorial and return (tutorial_id, results)"""
+            try:
+                if progress_callback:
+                    progress_callback(index + 1, len(tutorials), tutorial.title)
+                
+                tutorial_results = self.export_tutorial(tutorial.tutorial_id, formats)
+                
+                print(f"Completed export {index + 1}/{len(tutorials)}: {tutorial.title}")
+                return (tutorial.tutorial_id, tutorial_results)
+                
+            except Exception as e:
+                print(f"Failed to export tutorial {tutorial.title}: {e}")
+                return (tutorial.tutorial_id, {"error": str(e)})
+        
+        # Use ThreadPoolExecutor for controlled concurrency
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+            # Submit all tasks
+            future_to_tutorial = {
+                executor.submit(export_single_tutorial, tutorial, i): tutorial 
+                for i, tutorial in enumerate(tutorials)
+            }
+            
+            # Process completed tasks as they finish
+            for future in concurrent.futures.as_completed(future_to_tutorial):
+                tutorial = future_to_tutorial[future]
+                try:
+                    tutorial_id, tutorial_results = future.result()
+                    with results_lock:
+                        results[tutorial_id] = tutorial_results
+                except Exception as e:
+                    print(f"Exception in export task for {tutorial.title}: {e}")
+                    with results_lock:
+                        results[tutorial.tutorial_id] = {"error": str(e)}
+        
+        print(f"Concurrent export completed: {len(results)} tutorials processed")
+        return results

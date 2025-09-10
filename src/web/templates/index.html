@@ -157,6 +157,7 @@
         </div>
         <button onclick="exportAllTutorials()" class="btn btn-success">Export All Tutorials</button>
         <button onclick="refreshTutorials()" class="btn btn-secondary">Refresh List</button>
+        <button onclick="deleteAllTutorials()" class="btn btn-danger" style="margin-left: 15px;">Delete All Tutorials</button>
     </div>
 </div>
 {% endif %}
@@ -1098,46 +1099,69 @@ async function exportAllTutorials() {
     }
     
     const formatList = formats.join(', ').toUpperCase();
-    if (!confirm(`This will export all tutorials to ${formatList} formats. Continue?`)) {
+    if (!confirm(`This will export all tutorials to ${formatList} formats using optimized concurrent processing. Continue?`)) {
         return;
     }
     
     // Disable all buttons during bulk export
     setBulkButtonsDisabled(true);
     
-    showAlert(`Exporting all tutorials to ${formatList}... This may take a while.`, 'info');
+    showAlert(`Exporting all tutorials to ${formatList} with concurrent processing... This should be much faster!`, 'info');
     
     try {
-        const tutorialCards = document.querySelectorAll('.tutorial-card');
-        const tutorialIds = Array.from(tutorialCards).map(card => {
-            const editLink = card.querySelector('a[href^="/tutorial/"]');
-            return editLink.href.split('/').pop();
+        // Use the new concurrent export API
+        const response = await fetch('/api/tutorials/export_all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                formats: formats,
+                concurrent: true,
+                max_concurrent: 3  // Conservative default
+            })
         });
         
-        let successCount = 0;
-        let failedCount = 0;
+        const result = await response.json();
         
-        for (const tutorialId of tutorialIds) {
-            try {
-                await exportTutorialFormat(tutorialId, formats);
-                successCount++;
-            } catch (error) {
-                console.error(`Failed to export ${tutorialId}:`, error);
-                failedCount++;
+        if (result.success) {
+            const summary = result.summary;
+            const successCount = summary.successful;
+            const failedCount = summary.failed;
+            const totalCount = summary.total;
+            const concurrent = summary.concurrent;
+            
+            let message = `Bulk export completed: ${successCount}/${totalCount} successful`;
+            if (failedCount > 0) {
+                message += `, ${failedCount} failed`;
+            }
+            if (concurrent) {
+                message += ` (concurrent processing)`;
             }
             
-            // Brief pause between exports to avoid overwhelming the system
-            await new Promise(resolve => setTimeout(resolve, 500));
+            showAlert(message, failedCount === 0 ? 'success' : 'info');
+            
+            // Show detailed results if there were failures
+            if (failedCount > 0) {
+                console.log('Export results:', result.results);
+                const failedTutorials = Object.entries(result.results)
+                    .filter(([id, res]) => 'error' in res)
+                    .map(([id, res]) => `${id}: ${res.error}`)
+                    .slice(0, 5); // Show first 5 failures
+                
+                console.warn('Failed exports:', failedTutorials);
+            }
+            
+            // Refresh all file info
+            await loadAllFileInfo();
+            
+        } else {
+            showAlert('Bulk export failed: ' + (result.error || 'Unknown error'), 'error');
         }
-        
-        const resultMessage = `Bulk export completed: ${successCount} successful, ${failedCount} failed`;
-        showAlert(resultMessage, failedCount === 0 ? 'success' : 'info');
-        
-        // Refresh all file info
-        await loadAllFileInfo();
         
     } catch (error) {
         showAlert('Bulk export failed: ' + error.message, 'error');
+        console.error('Export error:', error);
     } finally {
         // Re-enable all buttons after bulk export completes or fails
         setBulkButtonsDisabled(false);
@@ -1146,5 +1170,78 @@ async function exportAllTutorials() {
 
 function refreshTutorials() {
     window.location.reload();
+}
+
+async function deleteAllTutorials() {
+    const tutorialCards = document.querySelectorAll('.tutorial-card');
+    const tutorialCount = tutorialCards.length;
+    
+    if (tutorialCount === 0) {
+        showAlert('No tutorials to delete', 'info');
+        return;
+    }
+    
+    // First confirmation - show count and basic warning
+    if (!confirm(`Are you sure you want to DELETE ALL ${tutorialCount} tutorials?\n\nThis action cannot be undone. All tutorial data, screenshots, and exported files will be permanently removed.`)) {
+        return;
+    }
+    
+    // Second confirmation - require typing DELETE ALL
+    const confirmText = prompt(`This will permanently delete ALL ${tutorialCount} tutorials.\n\nTo confirm, please type: DELETE ALL`);
+    if (confirmText !== 'DELETE ALL') {
+        if (confirmText !== null) { // User didn't cancel
+            showAlert('Deletion cancelled - confirmation text did not match', 'info');
+        }
+        return;
+    }
+    
+    // Disable all buttons during deletion
+    setBulkButtonsDisabled(true);
+    
+    // Update delete button text
+    const deleteAllButton = document.querySelector('[onclick*="deleteAllTutorials()"]');
+    if (deleteAllButton) {
+        deleteAllButton.textContent = 'Deleting All...';
+        deleteAllButton.disabled = true;
+    }
+    
+    showAlert(`Deleting all ${tutorialCount} tutorials... This may take a moment.`, 'info');
+    
+    try {
+        const response = await fetch('/api/tutorials/delete_all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert(`Successfully deleted ${result.deleted_count} of ${tutorialCount} tutorials`, 'success');
+            
+            // Show any failures if they occurred
+            if (result.failed_count > 0) {
+                console.warn('Some deletions failed:', result.failures);
+                showAlert(`Warning: ${result.failed_count} tutorials could not be deleted. Check console for details.`, 'warning');
+            }
+            
+            // Refresh the page after a moment
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showAlert('Failed to delete tutorials: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showAlert('Delete operation failed: ' + error.message, 'error');
+    } finally {
+        // Re-enable buttons
+        setBulkButtonsDisabled(false);
+        if (deleteAllButton) {
+            deleteAllButton.textContent = 'Delete All Tutorials';
+            deleteAllButton.disabled = false;
+        }
+    }
 }
 {% endblock %}

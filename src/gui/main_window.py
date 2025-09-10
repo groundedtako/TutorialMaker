@@ -155,6 +155,16 @@ class MainWindow:
         ttk.Button(toolbar_frame, text="Open Web Editor", 
                   command=self._open_web_editor).pack(side=tk.LEFT, padx=(10, 0))
         
+        # Add Delete All button with danger styling
+        delete_all_btn = ttk.Button(toolbar_frame, text="Delete All Tutorials", 
+                                   command=self._delete_all_tutorials)
+        delete_all_btn.pack(side=tk.LEFT, padx=(20, 0))
+        
+        # Style the delete button as dangerous
+        style = ttk.Style()
+        style.configure("Danger.TButton", foreground="red")
+        delete_all_btn.configure(style="Danger.TButton")
+        
         ttk.Button(toolbar_frame, text="Settings", 
                   command=self._open_settings).pack(side=tk.RIGHT)
         
@@ -351,6 +361,120 @@ class MainWindow:
                     messagebox.showerror("Error", "Failed to delete tutorial")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete tutorial: {e}")
+    
+    def _delete_all_tutorials(self):
+        """Delete all tutorials with safety confirmations"""
+        # Get list of all tutorials
+        tutorials = self.app.storage.list_tutorials()
+        tutorial_count = len(tutorials)
+        
+        if tutorial_count == 0:
+            messagebox.showinfo("No Tutorials", "No tutorials to delete")
+            return
+        
+        # First confirmation - show count and warning
+        if not messagebox.askyesno("Delete All Tutorials", 
+                                  f"Are you sure you want to DELETE ALL {tutorial_count} tutorials?\n\n"
+                                  "This action cannot be undone. All tutorial data, screenshots, "
+                                  "and exported files will be permanently removed.\n\n"
+                                  "Click YES to continue with confirmation, NO to cancel."):
+            return
+        
+        # Second confirmation - require typing DELETE ALL
+        from tkinter import simpledialog
+        confirm_text = simpledialog.askstring(
+            "Confirm Deletion", 
+            f"This will permanently delete ALL {tutorial_count} tutorials.\n\n"
+            "To confirm, please type: DELETE ALL",
+            show='*' if tutorial_count > 5 else None  # Hide text for large deletions
+        )
+        
+        if confirm_text != 'DELETE ALL':
+            if confirm_text is not None:  # User didn't cancel
+                messagebox.showinfo("Cancelled", "Deletion cancelled - confirmation text did not match")
+            return
+        
+        # Show progress dialog
+        progress_window = self._create_progress_dialog("Deleting Tutorials", f"Deleting {tutorial_count} tutorials...")
+        
+        # Perform deletion with progress tracking
+        deleted_count = 0
+        failed_count = 0
+        failures = []
+        
+        try:
+            for i, tutorial in enumerate(tutorials):
+                # Update progress
+                progress = (i + 1) / tutorial_count * 100
+                self._update_progress_dialog(progress_window, f"Deleting: {tutorial.title[:30]}...", progress)
+                
+                try:
+                    success = self.app.storage.delete_tutorial(tutorial.tutorial_id)
+                    if success:
+                        deleted_count += 1
+                    else:
+                        failed_count += 1
+                        failures.append(f"• {tutorial.title}: Delete operation failed")
+                except Exception as e:
+                    failed_count += 1
+                    failures.append(f"• {tutorial.title}: {str(e)}")
+                
+                # Allow GUI to update
+                self.root.update()
+            
+            # Close progress dialog
+            progress_window.destroy()
+            
+            # Show results
+            if failed_count == 0:
+                messagebox.showinfo("Success", f"Successfully deleted all {deleted_count} tutorials")
+            else:
+                failure_text = "\n".join(failures[:5])  # Show first 5 failures
+                if len(failures) > 5:
+                    failure_text += f"\n... and {len(failures) - 5} more"
+                
+                messagebox.showwarning("Partial Success", 
+                                     f"Deleted {deleted_count} tutorials successfully.\n"
+                                     f"{failed_count} tutorials could not be deleted:\n\n{failure_text}")
+            
+            # Refresh the tutorial list
+            self._refresh_tutorials()
+            
+        except Exception as e:
+            progress_window.destroy()
+            messagebox.showerror("Error", f"Delete operation failed: {str(e)}")
+    
+    def _create_progress_dialog(self, title, message):
+        """Create a progress dialog window"""
+        progress_window = tk.Toplevel(self.root)
+        progress_window.title(title)
+        progress_window.geometry("400x120")
+        progress_window.resizable(False, False)
+        progress_window.grab_set()  # Make it modal
+        
+        # Center on parent
+        progress_window.transient(self.root)
+        progress_window.geometry("+%d+%d" % (
+            self.root.winfo_rootx() + 50,
+            self.root.winfo_rooty() + 50
+        ))
+        
+        # Progress label
+        progress_window.label = ttk.Label(progress_window, text=message)
+        progress_window.label.pack(pady=20)
+        
+        # Progress bar
+        progress_window.progress = ttk.Progressbar(progress_window, length=300, mode='determinate')
+        progress_window.progress.pack(pady=10)
+        
+        return progress_window
+    
+    def _update_progress_dialog(self, progress_window, message, percentage):
+        """Update progress dialog"""
+        if progress_window and progress_window.winfo_exists():
+            progress_window.label.config(text=message)
+            progress_window.progress['value'] = percentage
+            progress_window.update()
     
     def _open_web_editor(self):
         """Open web editor in browser"""

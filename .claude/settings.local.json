@@ -23,7 +23,16 @@
       "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.screen_selector import ScreenSelectorDialog; from src.core.capture import ScreenCapture; import tkinter as tk; print(''Screen selector components imported successfully'')\")",
       "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; app = TutorialMakerApp(); print(''Testing monitor selection with web interface...'')\")",
       "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.screen_selector import ScreenSelectorDialog; from src.core.capture import ScreenCapture; import tkinter as tk; print(''Screen selector components imported successfully'')\")",
-      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; app = TutorialMakerApp(); app.web_mode = True; print(''Testing tutorial creation in web mode...''); tutorial_id = app.new_tutorial(''Test Tutorial''); print(f''Created tutorial: {tutorial_id}'')\")"
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.app import TutorialMakerApp; app = TutorialMakerApp(); app.web_mode = True; print(''Testing tutorial creation in web mode...''); tutorial_id = app.new_tutorial(''Test Tutorial''); print(f''Created tutorial: {tutorial_id}'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.storage import TutorialStorage; from src.core.app import TutorialMakerApp; print(''Syntax check passed'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.web.server import TutorialWebServer; from src.core.storage import TutorialStorage; storage = TutorialStorage(); server = TutorialWebServer(storage); print(''Web server components imported successfully'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.main_window import MainWindow; from src.core.app import TutorialMakerApp; print(''Desktop GUI components imported successfully'')\")",
+      "Bash(\"venv/Scripts/python.exe\" test_bulk_delete.py)",
+      "Bash(git commit:*)",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.core.exporters import TutorialExporter; from src.core.storage import TutorialStorage; print(''Testing export classes import...''); storage = TutorialStorage(); exporter = TutorialExporter(storage); print(''SUCCESS: Export classes imported successfully'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.web.server import TutorialWebServer; from src.core.storage import TutorialStorage; print(''Testing web server with new endpoints...''); storage = TutorialStorage(); server = TutorialWebServer(storage); print(''SUCCESS: Web server initialized with new endpoints'')\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"from src.gui.main_window import MainWindow; from src.core.app import TutorialMakerApp; print(''Testing desktop GUI with delete all functionality...''); print(''SUCCESS: Desktop GUI components imported successfully'')\")",
+      "Bash(\"venv/Scripts/python.exe\" test_concurrent_export.py)"
     ],
     "deny": [],
     "ask": []

@@ -59,13 +59,7 @@
                 </div>
                 {% endif %}
                 <div class="step-metadata">
-                    {% if step.coordinates and step.coordinates|length >= 2 %}
-                    <span class="coordinates">Clicked at: ({{ "%.0f"|format(step.coordinates[0]) }}, {{ "%.0f"|format(step.coordinates[1]) }})</span>
-                    {% endif %}
-                    {% if step.ocr_confidence and step.ocr_confidence > 0 %}
-                    <span class="ocr-confidence">OCR Confidence: {{ "%.1f%%"|format(step.ocr_confidence * 100) }}</span>
-                    {% endif %}
-                    <span class="step-type">Type: {{ step.step_type or 'unknown' }}</span>
+                    <!-- Debug metadata removed for cleaner tutorials -->
                 </div>
             </div>
         </div>

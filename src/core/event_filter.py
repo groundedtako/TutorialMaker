@@ -8,13 +8,14 @@ import time
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
-from .events import MouseClickEvent, KeyPressEvent, EventType
+from .events import MouseClickEvent, KeyPressEvent, ManualCaptureEvent, EventType
 
 
 @dataclass
 class FilterSettings:
     """Configuration settings for event filtering"""
     filter_keystrokes: bool = False  # Default: disabled (as requested by user)
+    manual_capture_hotkey: str = '='  # Hotkey that should be filtered from recordings
 
 
 @dataclass
@@ -46,7 +47,7 @@ class EventFilter:
         Determine if an event should be captured based on current filter settings
         
         Args:
-            event: MouseClickEvent or KeyPressEvent to evaluate
+            event: MouseClickEvent, KeyPressEvent, or ManualCaptureEvent to evaluate
             session: Recording session object with state information
         
         Returns:
@@ -56,7 +57,15 @@ class EventFilter:
         if not session.is_recording():
             return FilterDecision(should_capture=False, reason="session_not_recording")
         
-        # Debouncing is handled later in EventProcessor during queue processing
+        # Never filter manual capture events - they should always be processed
+        if isinstance(event, ManualCaptureEvent):
+            return FilterDecision(should_capture=True, reason="manual_capture_always_allowed")
+        
+        # Filter out manual capture hotkey presses from being recorded as keyboard events
+        if (isinstance(event, KeyPressEvent) and 
+            hasattr(event, 'key') and 
+            event.key == self.settings.manual_capture_hotkey):
+            return FilterDecision(should_capture=False, reason="manual_capture_hotkey_filtered")
         
         # Check keystroke filtering (only applies to keyboard events)
         if (self.settings.filter_keystrokes and 

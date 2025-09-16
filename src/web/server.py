@@ -446,9 +446,12 @@ class TutorialWebServer:
                 return jsonify({'error': 'No app instance connected'}), 500
             
             try:
+                # Set up manual capture hotkey before starting recording
+                self.app_instance.setup_manual_capture_hotkey('=')
+                
                 success = self.app_instance.start_recording()
                 if success:
-                    return jsonify({'success': True})
+                    return jsonify({'success': True, 'manual_capture_hotkey': '='})
                 else:
                     return jsonify({'error': 'Failed to start recording'}), 500
             except Exception as e:
@@ -508,6 +511,32 @@ class TutorialWebServer:
                     })
                 else:
                     return jsonify({'error': 'App not available'}), 500
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/recording/manual-capture', methods=['POST'])
+        def api_manual_capture():
+            """API: Trigger manual capture"""
+            if not self.app_instance:
+                return jsonify({'error': 'No app instance connected'}), 500
+            
+            try:
+                # Check if we have an active recording session
+                if not self.app_instance.session_manager.has_active_session():
+                    return jsonify({'error': 'No active recording session'}), 400
+                
+                session = self.app_instance.session_manager.current_session
+                if not session.is_recording():
+                    return jsonify({'error': 'Not currently recording'}), 400
+                
+                # Trigger manual capture
+                self.app_instance.trigger_manual_capture()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Manual capture triggered',
+                    'step_count': session.step_counter
+                })
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
         

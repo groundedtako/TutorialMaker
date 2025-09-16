@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
 
-from .events import MouseClickEvent, KeyPressEvent
+from .events import MouseClickEvent, KeyPressEvent, ManualCaptureEvent
 
 
 class QueueState(Enum):
@@ -22,7 +22,7 @@ class QueueState(Enum):
 @dataclass
 class QueuedEvent:
     """Container for queued events with metadata"""
-    event_type: str  # 'mouse_click' or 'keyboard_event'
+    event_type: str  # 'mouse_click', 'manual_capture', or 'keyboard_event'
     timestamp: float
     event_object: Any  # The original event object
     
@@ -98,6 +98,27 @@ class EventQueue:
                 'event_type': str(event.event_type),
                 'timestamp': event.timestamp
             }
+        )
+        
+        self.events.append(queued_event)
+    
+    def add_manual_capture(self, event: ManualCaptureEvent, screenshot=None, coordinate_info=None):
+        """Add manual capture event to queue with optional screenshot and coordinate info"""
+        if self.state != QueueState.RECORDING:
+            return
+        
+        queued_event = QueuedEvent(
+            event_type='manual_capture',
+            timestamp=event.timestamp,
+            event_object=event,
+            event_data={
+                'x': event.x,
+                'y': event.y,
+                'timestamp': event.timestamp,
+                'manual_capture': True
+            },
+            screenshot=screenshot,
+            coordinate_info=coordinate_info
         )
         
         self.events.append(queued_event)

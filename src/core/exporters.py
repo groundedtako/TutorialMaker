@@ -130,8 +130,7 @@ class HTMLExporter:
                     <div class="step-description" contenteditable="true">{step.description}</div>
                     {screenshot_html}
                     <div class="step-metadata">
-                        {f'<span class="coordinates">Clicked at: ({int(step.coordinates[0])}, {int(step.coordinates[1])})</span>' if step.coordinates else ''}
-                        {f'<span class="ocr-confidence">OCR Confidence: {step.ocr_confidence:.1%}</span>' if step.ocr_confidence > 0 else ''}
+                        <!-- Debug metadata removed for cleaner tutorials -->
                     </div>
                 </div>
             </div>
@@ -478,12 +477,7 @@ class WordExporter:
                     except Exception as e:
                         doc.add_paragraph(f"[Screenshot: {step.screenshot_path} - Error loading: {e}]")
             
-            # Add coordinates and OCR info
-            if step.coordinates:
-                doc.add_paragraph(f"Click coordinates: ({int(step.coordinates[0])}, {int(step.coordinates[1])})")
-            
-            if step.ocr_confidence > 0:
-                doc.add_paragraph(f"OCR confidence: {step.ocr_confidence:.1%}")
+            # Debug metadata removed for cleaner tutorials
             
             doc.add_paragraph("")  # Space between steps
         
@@ -582,14 +576,7 @@ class PDFExporter:
                         y -= 20
             
             # Add coordinates and OCR info
-            if step.coordinates:
-                c.setFont("Helvetica", 10)
-                c.drawString(50, y, f"Click coordinates: ({int(step.coordinates[0])}, {int(step.coordinates[1])})")
-                y -= 15
-            
-            if step.ocr_confidence > 0:
-                c.drawString(50, y, f"OCR confidence: {step.ocr_confidence:.1%}")
-                y -= 15
+            # Debug metadata removed for cleaner tutorials
             
             # Start new page if needed
             if y < 150:

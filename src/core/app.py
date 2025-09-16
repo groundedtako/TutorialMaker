@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 from .capture import ScreenCapture
-from .events import EventMonitor, MouseClickEvent, KeyPressEvent, EventType
+from .events import EventMonitor, MouseClickEvent, KeyPressEvent, ManualCaptureEvent, EventType
 from .ocr import OCREngine, OCRResult
 from .smart_ocr import SmartOCRProcessor
 from .storage import TutorialStorage, TutorialStep, TutorialMetadata
@@ -63,6 +63,11 @@ class TutorialMakerApp:
         # Set up event callbacks
         self.event_monitor.set_mouse_callback(self._on_mouse_click)
         self.event_monitor.set_keyboard_callback(self._on_keyboard_event)
+        self.event_monitor.set_manual_capture_callback(self._on_manual_capture)
+        
+        # Global hotkey manager for manual capture (optional)
+        self.hotkey_manager = None
+        self._manual_capture_hotkey = '='  # Simple, single-key hotkey
         
         # Processing thread
         self.processing_thread = None
@@ -308,6 +313,10 @@ class TutorialMakerApp:
         # Increment step counter for real-time user feedback
         step_count = self.session_manager.increment_step_counter()
         
+        # Log to session logger
+        if session.logger:
+            session.logger.log_mouse_click(event, step_count)
+        
         if self.debug_mode:
             print(f"DEBUG: Queued mouse click at ({event.x}, {event.y}) - Step {step_count}")
     
@@ -349,6 +358,98 @@ class TutorialMakerApp:
             if self.debug_mode:
                 print(f"DEBUG: Queued keyboard event '{event.key}' (no step increment)")
     
+    def _on_manual_capture(self, event: ManualCaptureEvent):
+        """Handle manual capture events - capture screenshot and add to queue during recording"""
+        # Check if we have an active recording session
+        if not self.session_manager.has_active_session():
+            print("Manual capture: No active recording session")
+            return
+        
+        session = self.session_manager.current_session
+        if not session or not session.is_recording():
+            print("Manual capture: Not recording")
+            return
+        
+        # Check if event is on the selected monitor (ignore events on other monitors)
+        if session.selected_monitor is not None:
+            screen_info = self.screen_capture.get_screen_info()
+            monitors = screen_info.get('monitors', [])
+            
+            if not session.is_event_on_selected_monitor(event.x, event.y, monitors):
+                if self.debug_mode:
+                    print(f"DEBUG: Ignoring manual capture at ({event.x}, {event.y}) - not on selected monitor {session.selected_monitor}")
+                return
+        
+        # Apply filtering (mainly for post-stop/pause filtering)
+        if hasattr(self, 'event_filter'):
+            filter_decision = self.event_filter.should_capture_event(event, session)
+            if not filter_decision.should_capture:
+                if self.debug_mode:
+                    print(f"DEBUG: Filtered manual capture at ({event.x}, {event.y}) - Reason: {filter_decision.reason}")
+                return
+        
+        # Transform coordinates using centralized coordinate handler
+        coord_info = self.coordinate_handler.transform_coordinates(event.x, event.y)
+        
+        # Capture screenshot immediately at the time of manual capture
+        screenshot = self.screen_capture.capture_full_screen(click_point=(event.x, event.y))
+        
+        # Track which monitor was captured
+        if screenshot:
+            self.coordinate_handler.set_last_capture_monitor(coord_info.monitor)
+        
+        # Convert to legacy format for compatibility with existing EventProcessor
+        coordinate_info = coord_info.to_legacy_dict() if coord_info else None
+        
+        # Add to event queue with captured screenshot and coordinate info
+        self.event_queue.add_manual_capture(event, screenshot, coordinate_info)
+        
+        # Increment step counter for real-time user feedback
+        step_count = self.session_manager.increment_step_counter()
+        
+        # Log to session logger
+        if session.logger:
+            session.logger.log_manual_capture(event, step_count, "hotkey")
+        
+        print(f"Manual capture recorded at ({event.x}, {event.y}) - Step {step_count}")
+        if self.debug_mode:
+            print(f"DEBUG: Queued manual capture at ({event.x}, {event.y}) - Step {step_count}")
+    
+    def trigger_manual_capture(self):
+        """Public method to trigger manual capture via hotkey or UI"""
+        self.event_monitor.trigger_manual_capture()
+    
+    def setup_manual_capture_hotkey(self, hotkey: str = None):
+        """Setup manual capture hotkey using existing pynput monitoring"""
+        if hotkey:
+            self._manual_capture_hotkey = hotkey
+            # Update filter settings to exclude this hotkey from recordings
+            if hasattr(self, 'event_filter'):
+                self.event_filter.settings.manual_capture_hotkey = hotkey
+        
+        try:
+            # Use the existing EventMonitor instead of GlobalHotkeyManager
+            self.event_monitor.set_manual_capture_hotkey(self._manual_capture_hotkey)
+            print(f"Manual capture hotkey configured: '{self._manual_capture_hotkey}'")
+            print("Hotkey will be active when event monitoring is running")
+            return True
+                
+        except Exception as e:
+            print(f"Manual capture hotkey setup failed: {e}")
+            print("Manual capture will be available through direct method calls only")
+            return False
+    
+    def cleanup_hotkeys(self):
+        """Clean up hotkeys"""
+        # Disable manual capture hotkey in event monitor
+        if hasattr(self, 'event_monitor'):
+            self.event_monitor.manual_capture_enabled = False
+            self.event_monitor.manual_capture_hotkey = None
+        
+        # Clean up legacy hotkey manager if it exists
+        if self.hotkey_manager:
+            self.hotkey_manager.stop()
+            self.hotkey_manager = None
     
     def list_tutorials(self) -> List[TutorialMetadata]:
         """List all available tutorials"""

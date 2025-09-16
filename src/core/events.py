@@ -31,6 +31,7 @@ except ImportError:
 class EventType(Enum):
     """Types of events we can capture"""
     MOUSE_CLICK = "mouse_click"
+    MANUAL_CAPTURE = "manual_capture"
     KEY_PRESS = "key_press"
     TEXT_INPUT = "text_input"
     SPECIAL_KEY = "special_key"
@@ -57,6 +58,14 @@ class KeyPressEvent:
     event_type: EventType = EventType.KEY_PRESS
 
 @dataclass
+class ManualCaptureEvent:
+    """Manual screenshot capture event (triggered by hotkey)"""
+    timestamp: float
+    x: int
+    y: int
+    event_type: EventType = EventType.MANUAL_CAPTURE
+
+@dataclass
 class TextInputEvent:
     """Text input session data"""
     timestamp: float
@@ -76,6 +85,10 @@ class EventMonitor:
         # Event callbacks
         self.mouse_click_callback: Optional[Callable] = None
         self.key_press_callback: Optional[Callable] = None
+        self.manual_capture_callback: Optional[Callable] = None
+        # Manual capture hotkey settings
+        self.manual_capture_hotkey: Optional[str] = None
+        self.manual_capture_enabled: bool = False
         # Text input tracking
         self.current_text_session = []
         self.last_key_time = 0
@@ -99,6 +112,16 @@ class EventMonitor:
     def set_keyboard_callback(self, callback: Callable[[KeyPressEvent], None]):
         """Set callback for keyboard events"""
         self.key_press_callback = callback
+    
+    def set_manual_capture_callback(self, callback: Callable[[ManualCaptureEvent], None]):
+        """Set callback for manual capture events"""
+        self.manual_capture_callback = callback
+    
+    def set_manual_capture_hotkey(self, hotkey: str):
+        """Set the hotkey for manual capture"""
+        self.manual_capture_hotkey = hotkey
+        self.manual_capture_enabled = True
+        print(f"Manual capture hotkey set to: '{hotkey}'")
     
     def start_monitoring(self) -> bool:
         """
@@ -275,6 +298,18 @@ class EventMonitor:
         # Convert key to string and determine if it's special
         key_str, is_special, key_code = self._process_key(key)
         
+        # Check for manual capture hotkey FIRST (before creating KeyPressEvent)
+        if (self.manual_capture_enabled and 
+            self.manual_capture_hotkey and 
+            key_str == self.manual_capture_hotkey):
+            print(f"Manual capture hotkey '{key_str}' detected!")
+            
+            # Log hotkey detection if we have access to a session logger
+            # (We'll need to find a way to pass the logger to EventMonitor)
+            
+            self.trigger_manual_capture()
+            return  # Don't process this as a regular key event
+        
         # Create key event
         event = KeyPressEvent(
             timestamp=current_time,
@@ -380,6 +415,41 @@ class EventMonitor:
         
         # Clear session
         self.current_text_session = []
+    
+    def trigger_manual_capture(self):
+        """Trigger a manual screenshot capture at current mouse position"""
+        if not self.is_monitoring:
+            print("EventMonitor: Cannot trigger manual capture - monitoring not active")
+            return
+        
+        try:
+            # Get current mouse position
+            if not PYNPUT_AVAILABLE:
+                print("EventMonitor: Cannot get mouse position - pynput not available")
+                return
+            
+            from pynput.mouse import Controller as MouseController
+            mouse = MouseController()
+            x, y = mouse.position
+            
+            # Create manual capture event
+            event = ManualCaptureEvent(
+                timestamp=time.time(),
+                x=int(x),
+                y=int(y)
+            )
+            
+            # Call callback if set
+            if self.manual_capture_callback:
+                try:
+                    self.manual_capture_callback(event)
+                except Exception as e:
+                    print(f"Error in manual capture callback: {e}")
+            
+            print(f"Manual capture triggered at ({x}, {y})")
+            
+        except Exception as e:
+            print(f"Error triggering manual capture: {e}")
     
     def get_status(self) -> Dict[str, Any]:
         """Get current monitoring status"""

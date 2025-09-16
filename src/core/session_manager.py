@@ -12,6 +12,7 @@ from .events import EventMonitor
 from .event_queue import EventQueue
 from .event_processor import EventProcessor
 from .storage import TutorialStorage
+from .session_logger import SessionLogger
 
 
 class SessionState(Enum):
@@ -24,7 +25,8 @@ class SessionState(Enum):
 class RecordingSession:
     """Manages a single recording session"""
     
-    def __init__(self, tutorial_id: str, title: str = "", selected_monitor: Optional[int] = None):
+    def __init__(self, tutorial_id: str, title: str = "", selected_monitor: Optional[int] = None, 
+                 logger: Optional[SessionLogger] = None):
         self.tutorial_id = tutorial_id
         self.title = title
         self.status = SessionState.STOPPED
@@ -34,6 +36,7 @@ class RecordingSession:
         self.step_counter = 0
         self.last_event_time = 0.0
         self.selected_monitor = selected_monitor  # Monitor to record on
+        self.logger = logger  # Session logger for detailed logging
         
     def start(self):
         """Start recording"""
@@ -41,6 +44,8 @@ class RecordingSession:
         self.start_time = time.time()
         self.step_counter = 0
         self.total_pause_duration = 0.0
+        if self.logger:
+            self.logger.log_session_state("recording_started", f"Started recording '{self.title}'")
         print(f"Recording started for: {self.title}")
     
     def pause(self):
@@ -48,6 +53,8 @@ class RecordingSession:
         if self.status == SessionState.RECORDING:
             self.status = SessionState.PAUSED
             self.pause_start_time = time.time()
+            if self.logger:
+                self.logger.log_session_state("recording_paused", "Recording paused by user")
             print("Recording paused")
     
     def resume(self):
@@ -55,8 +62,11 @@ class RecordingSession:
         if self.status == SessionState.PAUSED:
             self.status = SessionState.RECORDING
             if self.pause_start_time:
-                self.total_pause_duration += time.time() - self.pause_start_time
+                pause_duration = time.time() - self.pause_start_time
+                self.total_pause_duration += pause_duration
                 self.pause_start_time = None
+                if self.logger:
+                    self.logger.log_session_state("recording_resumed", f"Resumed after {pause_duration:.1f}s pause")
             print("Recording resumed")
     
     def stop(self):
@@ -64,6 +74,8 @@ class RecordingSession:
         self.status = SessionState.STOPPED
         if self.pause_start_time:
             self.total_pause_duration += time.time() - self.pause_start_time
+        if self.logger:
+            self.logger.log_session_state("recording_stopped", f"Recording stopped. {self.step_counter} steps captured")
         print(f"Recording stopped. Total steps: {self.step_counter}")
     
     def is_recording(self) -> bool:
@@ -145,8 +157,16 @@ class SessionManager:
                 print("Stopping current session to start new one...")
                 self.stop_recording()
         
-        # Create new session
-        self.current_session = RecordingSession(tutorial_id, title, selected_monitor)
+        # Create session logger
+        project_path = self.storage.get_project_path(tutorial_id)
+        if project_path:
+            session_logger = SessionLogger(tutorial_id, project_path, self.debug_mode)
+        else:
+            session_logger = None
+            print("Warning: Could not create session logger - project path not found")
+        
+        # Create new session with logger
+        self.current_session = RecordingSession(tutorial_id, title, selected_monitor, session_logger)
         
         if self.debug_mode:
             monitor_text = f" (Monitor {selected_monitor})" if selected_monitor else " (Auto-detect monitor)"
@@ -251,6 +271,17 @@ class SessionManager:
         # Store final stats before clearing session
         final_step_count = self.current_session.step_counter
         final_duration = self.current_session.get_duration()
+        
+        # Save session log before clearing session
+        if self.current_session.logger:
+            try:
+                summary = self.current_session.logger.get_session_summary()
+                self.current_session.logger.log_session_state("session_completed", 
+                    f"Session completed with {final_step_count} steps in {final_duration:.1f}s")
+                self.current_session.logger.save_session_log()
+                print(f"Session log saved: {summary['log_file']}")
+            except Exception as e:
+                print(f"Warning: Could not save session log: {e}")
         
         print(f"Tutorial completed: {tutorial_title}")
         print(f"Duration: {final_duration:.1f} seconds")

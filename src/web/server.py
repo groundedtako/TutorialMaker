@@ -446,9 +446,7 @@ class TutorialWebServer:
                 return jsonify({'error': 'No app instance connected'}), 500
             
             try:
-                # Set up manual capture hotkey before starting recording
-                self.app_instance.setup_manual_capture_hotkey('=')
-                
+                # Manual capture is now enabled by default in TutorialMakerApp
                 success = self.app_instance.start_recording()
                 if success:
                     return jsonify({'success': True, 'manual_capture_hotkey': '='})

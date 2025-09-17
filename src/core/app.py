@@ -69,6 +69,9 @@ class TutorialMakerApp:
         self.hotkey_manager = None
         self._manual_capture_hotkey = '='  # Simple, single-key hotkey
         
+        # Enable manual capture by default
+        self.setup_manual_capture_hotkey(self._manual_capture_hotkey)
+        
         # Processing thread
         self.processing_thread = None
         self.running = False

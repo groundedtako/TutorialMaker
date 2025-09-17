@@ -46,6 +46,8 @@ class MouseClickEvent:
     pressed: bool  # True for press, False for release
     event_type: EventType = EventType.MOUSE_CLICK
     is_drag: bool = False  # New field for future drag support
+    is_double_click: bool = False  # True if this is part of a double-click
+    click_count: int = 1  # Number of clicks in sequence (1=single, 2=double, etc.)
 
 @dataclass
 class KeyPressEvent:
@@ -102,8 +104,73 @@ class EventMonitor:
         self._press_time = None
         self._dragged = False
         self._drag_threshold = 5  # pixels
+        # Double-click tracking
+        self._last_click_time = 0.0
+        self._last_click_pos = None
+        self._last_click_button = None
+        self._double_click_threshold = self._get_system_double_click_interval()
+        self._double_click_distance = 10  # pixels tolerance for double-click
         if not PYNPUT_AVAILABLE:
             print("pynput not available. Please install: pip install pynput")
+    
+    def _get_system_double_click_interval(self) -> float:
+        """Get system double-click interval in seconds"""
+        try:
+            if platform.system() == "Windows":
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Mouse") as key:
+                    interval_ms = int(winreg.QueryValueEx(key, "DoubleClickSpeed")[0])
+                    return interval_ms / 1000.0
+            elif platform.system() == "Darwin":  # macOS
+                import subprocess
+                result = subprocess.run(
+                    ["defaults", "read", "-g", "com.apple.mouse.doubleClickThreshold"],
+                    capture_output=True, text=True, timeout=2
+                )
+                if result.returncode == 0:
+                    return float(result.stdout.strip())
+                else:
+                    return 0.5  # Default for macOS
+            elif platform.system() == "Linux":
+                # Try to read from X11 settings
+                import subprocess
+                result = subprocess.run(
+                    ["xset", "q"], capture_output=True, text=True, timeout=2
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        if 'click to repeat' in line:
+                            # Parse double-click interval from xset output
+                            return 0.4  # Default for most Linux systems
+                return 0.4
+        except Exception as e:
+            print(f"Could not get system double-click interval: {e}")
+        
+        # Fallback to reasonable default (400ms)
+        return 0.4
+    
+    def _detect_double_click(self, current_time: float, click_pos: tuple, button_name: str) -> bool:
+        """Detect if this click is part of a double-click sequence"""
+        if self._last_click_time == 0.0 or self._last_click_pos is None:
+            return False  # First click ever
+        
+        # Check timing
+        time_diff = current_time - self._last_click_time
+        if time_diff > self._double_click_threshold:
+            return False  # Too slow
+        
+        # Check button matches
+        if button_name != self._last_click_button:
+            return False  # Different button
+        
+        # Check distance
+        dx = click_pos[0] - self._last_click_pos[0]
+        dy = click_pos[1] - self._last_click_pos[1]
+        distance = (dx*dx + dy*dy) ** 0.5
+        if distance > self._double_click_distance:
+            return False  # Too far apart
+        
+        return True  # This is a double-click!
     
     def set_mouse_callback(self, callback: Callable[[MouseClickEvent], None]):
         """Set callback for mouse click events"""
@@ -236,7 +303,7 @@ class EventMonitor:
             dy = y - self._press_pos[1]
             dist_sq = dx*dx + dy*dy
             if dist_sq <= self._drag_threshold * self._drag_threshold and not self._dragged:
-                # Simple click: emit event
+                # Simple click: check for double-click
                 button_name = "unknown"
                 if button == Button.left:
                     button_name = "left"
@@ -244,14 +311,30 @@ class EventMonitor:
                     button_name = "right"
                 elif button == Button.middle:
                     button_name = "middle"
+                
+                current_time = time.time()
+                click_pos = (self._press_pos[0], self._press_pos[1])
+                
+                # Check for double-click
+                is_double_click = self._detect_double_click(current_time, click_pos, button_name)
+                click_count = 2 if is_double_click else 1
+                
                 event = MouseClickEvent(
-                    timestamp=time.time(),
+                    timestamp=current_time,
                     x=self._press_pos[0],  # Use press position instead of release
                     y=self._press_pos[1],  # Use press position instead of release
                     button=button_name,
                     pressed=False,
-                    is_drag=False
+                    is_drag=False,
+                    is_double_click=is_double_click,
+                    click_count=click_count
                 )
+                
+                # Update last click tracking
+                self._last_click_time = current_time
+                self._last_click_pos = click_pos
+                self._last_click_button = button_name
+                
                 if self.mouse_click_callback:
                     try:
                         self.mouse_click_callback(event)

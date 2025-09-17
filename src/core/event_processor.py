@@ -146,7 +146,13 @@ class EventProcessor:
                 step_number=step_number,
                 description=description,
                 screenshot_path=screenshot_path,
-                event_data={'x': event.x, 'y': event.y, 'button': event.button},
+                event_data={
+                    'x': event.x, 
+                    'y': event.y, 
+                    'button': event.button,
+                    'is_double_click': event.is_double_click,
+                    'click_count': event.click_count
+                },
                 ocr_text=ocr_result.cleaned_text if ocr_result.is_valid() else None,
                 ocr_confidence=ocr_result.confidence if ocr_result.is_valid() else 0.0,
                 coordinates=(event.x, event.y),
@@ -347,22 +353,32 @@ class EventProcessor:
     
     def _generate_click_description(self, event: MouseClickEvent, ocr_result: OCRResult) -> str:
         """Generate a human-readable description for a click event"""
+        # Determine click type prefix
+        if event.is_double_click or event.click_count == 2:
+            click_prefix = "Double-click"
+        else:
+            click_prefix = "Click"
+        
+        # Add button specification for non-left clicks
+        if event.button != "left":
+            click_prefix = f"{event.button.capitalize()} {click_prefix.lower()}"
+        
         if ocr_result.is_valid() and ocr_result.cleaned_text:
             text = ocr_result.cleaned_text.strip()
             
             # Handle different types of OCR results
             if ocr_result.engine == "context_analysis":
                 # Context-inferred descriptions
-                return f'Click on {text}'
+                return f'{click_prefix} on {text}'
             elif len(text) <= 2:
                 # Very short text might be a symbol or single character
-                return f'Click on "{text}" element'
+                return f'{click_prefix} on "{text}" element'
             else:
                 # Normal text result
-                return f'Click on "{text}"'
+                return f'{click_prefix} on "{text}"'
         else:
             # No OCR text - use coordinates with enhanced description
-            return f'Click at position ({event.x}, {event.y})'
+            return f'{click_prefix} at position ({event.x}, {event.y})'
     
     def _generate_manual_capture_description(self, event: ManualCaptureEvent, ocr_result: OCRResult) -> str:
         """Generate a human-readable description for a manual capture event"""

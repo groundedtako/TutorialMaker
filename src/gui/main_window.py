@@ -32,9 +32,34 @@ class MainWindow:
         self.root.geometry("800x600")
         self.root.minsize(600, 400)
         
+        # Configure DPI awareness for Windows
+        try:
+            # Try to enable DPI awareness on Windows
+            import sys
+            if sys.platform.startswith('win'):
+                try:
+                    from ctypes import windll
+                    windll.shcore.SetProcessDpiAwareness(1)
+                except:
+                    pass  # Fail silently if not available
+        except:
+            pass
+        
         # Configure style
-        style = ttk.Style()
-        style.theme_use('clam')  # Modern look
+        self.style = ttk.Style()
+        self.style.theme_use('clam')  # Modern look
+        
+        # Configure Treeview row height for better readability
+        # This fixes the "squished" appearance on Windows with different DPI settings
+        row_height = self._calculate_optimal_row_height()
+        self.style.configure('Treeview', rowheight=row_height)
+        self.style.configure('Treeview.Heading', font=('Helvetica', 9, 'bold'))
+        self.style.configure('Treeview', font=('Helvetica', 9))
+        
+        # Add some padding and styling improvements
+        self.style.configure('Treeview', background='white', fieldbackground='white')
+        self.style.map('Treeview', background=[('selected', '#0078d4')])
+        self.style.configure('Treeview.Heading', background='#f0f0f0', relief='flat')
         
         # Configure colors
         self.root.configure(bg='#f8f9fa')
@@ -118,18 +143,19 @@ class MainWindow:
         columns = ('Name', 'Steps', 'Duration', 'Created', 'Status')
         self.tutorial_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=10)
         
-        # Configure columns
+        # Configure columns with better spacing and minimum widths
         self.tutorial_tree.heading('Name', text='Tutorial Name')
         self.tutorial_tree.heading('Steps', text='Steps')
         self.tutorial_tree.heading('Duration', text='Duration (s)')
         self.tutorial_tree.heading('Created', text='Created')
         self.tutorial_tree.heading('Status', text='Status')
         
-        self.tutorial_tree.column('Name', width=250)
-        self.tutorial_tree.column('Steps', width=80, anchor='center')
-        self.tutorial_tree.column('Duration', width=100, anchor='center')
-        self.tutorial_tree.column('Created', width=150)
-        self.tutorial_tree.column('Status', width=100, anchor='center')
+        # Set column properties with minimum widths for better scaling
+        self.tutorial_tree.column('Name', width=280, minwidth=200, stretch=True)
+        self.tutorial_tree.column('Steps', width=80, minwidth=60, anchor='center', stretch=False)
+        self.tutorial_tree.column('Duration', width=110, minwidth=90, anchor='center', stretch=False)
+        self.tutorial_tree.column('Created', width=160, minwidth=120, stretch=False)
+        self.tutorial_tree.column('Status', width=100, minwidth=80, anchor='center', stretch=False)
         
         # Scrollbar for treeview
         scrollbar = ttk.Scrollbar(list_frame, orient='vertical', command=self.tutorial_tree.yview)
@@ -166,6 +192,53 @@ class MainWindow:
         
         # Load initial data
         self._refresh_tutorials()
+    
+    def _calculate_optimal_row_height(self):
+        """Calculate optimal row height based on system DPI and font size"""
+        try:
+            # Get the font metrics for the default font
+            test_font = ('Helvetica', 9)
+            
+            # Create a temporary label to measure font height
+            temp_label = tk.Label(self.root, font=test_font, text='Ag')
+            temp_label.update_idletasks()
+            font_height = temp_label.winfo_reqheight()
+            temp_label.destroy()
+            
+            # Calculate row height with some padding
+            # Use at least 25 pixels, but scale with font if needed
+            row_height = max(25, font_height + 10)
+            
+            # On Windows with high DPI, might need extra height
+            import sys
+            if sys.platform.startswith('win'):
+                try:
+                    # Try to detect DPI scaling
+                    import tkinter.font as tkfont
+                    default_font = tkfont.nametofont("TkDefaultFont")
+                    font_size = default_font['size']
+                    if font_size > 9:  # Likely high DPI
+                        row_height = max(row_height, int(font_size * 2.8))
+                except:
+                    pass
+            
+            return min(row_height, 40)  # Cap at 40 pixels
+            
+        except Exception:
+            # Fallback to a safe default
+            return 25
+    
+    def _on_window_configure(self, event):
+        """Handle window configuration changes (including DPI changes)"""
+        # Only respond to root window events, not child widgets
+        if event.widget == self.root:
+            # Check if we need to adjust row height due to DPI changes
+            current_height = self.style.lookup('Treeview', 'rowheight')
+            optimal_height = self._calculate_optimal_row_height()
+            
+            # Only update if there's a significant difference
+            if abs(int(current_height or 25) - optimal_height) > 3:
+                self.style.configure('Treeview', rowheight=optimal_height)
         
     def _setup_bindings(self):
         """Set up event bindings"""
@@ -178,6 +251,9 @@ class MainWindow:
         
         # Window close handler
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
+        # Bind to window configuration changes (helps with DPI changes)
+        self.root.bind("<Configure>", self._on_window_configure)
         
     def _new_tutorial(self):
         """Create a new tutorial"""

@@ -69,11 +69,12 @@ class TutorialMakerDesktopApp:
             from .hotkeys import GlobalHotkeyManager
             self.hotkey_manager = GlobalHotkeyManager(self.core_app, self.main_window)
             
-            # Default hotkeys
+            # Default hotkeys (will be normalized to ctrl on Windows)
             hotkeys = {
-                'cmd+shift+r': self._hotkey_toggle_recording,
-                'cmd+shift+p': self._hotkey_pause_resume,
-                'cmd+shift+n': self._hotkey_new_tutorial,
+                'ctrl+shift+r': self._hotkey_toggle_recording,
+                'ctrl+shift+p': self._hotkey_pause_resume,
+                'ctrl+shift+n': self._hotkey_new_tutorial,
+                'ctrl+shift+h': self._hotkey_toggle_floating_window,
             }
             
             for hotkey, callback in hotkeys.items():
@@ -125,6 +126,22 @@ class TutorialMakerDesktopApp:
             self.main_window.show()
             # Focus on tutorial name entry
             self.main_window.tutorial_name_var.set("")
+        except Exception as e:
+            print(f"Hotkey error: {e}")
+    
+    def _hotkey_toggle_floating_window(self):
+        """Hotkey callback: Hide/show floating recording controls"""
+        try:
+            # Check if we have a recording window
+            if self.main_window.recording_window:
+                if self.main_window.recording_window.is_visible:
+                    self.main_window.recording_window.hide()
+                else:
+                    self.main_window.recording_window.show()
+            else:
+                # No floating window exists - this usually means not recording
+                # Show main window instead
+                self.main_window.show()
         except Exception as e:
             print(f"Hotkey error: {e}")
     

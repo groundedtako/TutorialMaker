@@ -113,6 +113,7 @@ Right-click the tray icon for quick access to:
 | `Cmd+Shift+R` (Mac)<br>`Ctrl+Shift+R` (Win/Linux) | Start/Stop Recording |
 | `Cmd+Shift+P` (Mac)<br>`Ctrl+Shift+P` (Win/Linux) | Pause/Resume Recording |
 | `Cmd+Shift+N` (Mac)<br>`Ctrl+Shift+N` (Win/Linux) | New Tutorial |
+| `Cmd+Shift+H` (Mac)<br>`Ctrl+Shift+H` (Win/Linux) | Hide/Show Floating Controls |
 
 ### Floating Controls
 

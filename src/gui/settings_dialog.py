@@ -47,9 +47,10 @@ class SettingsDialog:
                 'always_on_top': True,
             },
             'hotkeys': {
-                'start_stop_recording': 'cmd+shift+r',
-                'pause_resume': 'cmd+shift+p',
-                'new_tutorial': 'cmd+shift+n',
+                'start_stop_recording': 'ctrl+shift+r',
+                'pause_resume': 'ctrl+shift+p',
+                'new_tutorial': 'ctrl+shift+n',
+                'toggle_floating_window': 'ctrl+shift+h',
             },
             'storage': {
                 'base_path': str(Path.home() / "TutorialMaker"),
@@ -254,9 +255,16 @@ class SettingsDialog:
         self.vars['new_tutorial'] = tk.StringVar()
         ttk.Entry(row3, textvariable=self.vars['new_tutorial'], width=20).pack(side=tk.LEFT, padx=(10, 0))
         
+        # Toggle floating window
+        row4 = ttk.Frame(hotkeys_frame)
+        row4.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(row4, text="Hide/Show Controls:", width=20).pack(side=tk.LEFT)
+        self.vars['toggle_floating_window'] = tk.StringVar()
+        ttk.Entry(row4, textvariable=self.vars['toggle_floating_window'], width=20).pack(side=tk.LEFT, padx=(10, 0))
+        
         # Help text
         help_text = ttk.Label(hotkeys_frame, 
-                             text="Format: cmd+shift+r, ctrl+alt+s, etc.\\nLeave empty to disable hotkey.",
+                             text="Format: ctrl+shift+r, ctrl+alt+s, etc.\\nLeave empty to disable hotkey.\\nUse 'ctrl' on Windows/Linux, 'cmd' on Mac.\\nDefaults: R=Record, P=Pause, N=New, H=Hide/Show Controls",
                              foreground='gray', font=('Helvetica', 9))
         help_text.pack(anchor=tk.W, pady=(10, 0))
     
@@ -343,9 +351,10 @@ class SettingsDialog:
         
         # Hotkeys
         hotkeys = self.settings['hotkeys']
-        self.vars['start_stop_recording'].set(hotkeys.get('start_stop_recording', 'cmd+shift+r'))
-        self.vars['pause_resume'].set(hotkeys.get('pause_resume', 'cmd+shift+p'))
-        self.vars['new_tutorial'].set(hotkeys.get('new_tutorial', 'cmd+shift+n'))
+        self.vars['start_stop_recording'].set(hotkeys.get('start_stop_recording', 'ctrl+shift+r'))
+        self.vars['pause_resume'].set(hotkeys.get('pause_resume', 'ctrl+shift+p'))
+        self.vars['new_tutorial'].set(hotkeys.get('new_tutorial', 'ctrl+shift+n'))
+        self.vars['toggle_floating_window'].set(hotkeys.get('toggle_floating_window', 'ctrl+shift+h'))
         
         # Storage
         storage = self.settings['storage']
@@ -388,6 +397,7 @@ class SettingsDialog:
         hotkeys['start_stop_recording'] = self.vars['start_stop_recording'].get()
         hotkeys['pause_resume'] = self.vars['pause_resume'].get()
         hotkeys['new_tutorial'] = self.vars['new_tutorial'].get()
+        hotkeys['toggle_floating_window'] = self.vars['toggle_floating_window'].get()
         
         # Storage
         storage = self.settings['storage']

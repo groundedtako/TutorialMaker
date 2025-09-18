@@ -33,6 +33,36 @@ class HTMLExporter:
         self.template = self._get_html_template()
         self.click_highlighter = ClickHighlighter()
     
+    def _format_description(self, text: str) -> str:
+        """Format step descriptions with markdown-like formatting"""
+        if not text:
+            return ""
+        
+        import re
+        
+        # Escape HTML first to prevent injection
+        text = str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        
+        # Convert ```code blocks``` first (before single backticks)
+        text = re.sub(r'```([^`]+?)```', r'<pre style="background: #f8f8f8; padding: 10px; border-radius: 5px; border-left: 4px solid #007bff; margin: 8px 0; overflow-x: auto;"><code style="font-family: monospace;">\1</code></pre>', text, flags=re.DOTALL)
+        
+        # Convert newlines to <br> tags
+        text = text.replace('\n', '<br>')
+        
+        # Convert **bold** to <strong>
+        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+        
+        # Convert *italic* to <em>
+        text = re.sub(r'\*([^*]+?)\*', r'<em>\1</em>', text)
+        
+        # Convert `code` to <code>
+        text = re.sub(r'`([^`]+?)`', r'<code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</code>', text)
+        
+        # Preserve multiple spaces by converting them to non-breaking spaces
+        text = re.sub(r'  +', lambda m: '&nbsp;' * len(m.group()), text)
+        
+        return text
+    
     def export(self, metadata: TutorialMetadata, steps: List[TutorialStep], 
                project_path: Path) -> str:
         """
@@ -70,6 +100,36 @@ class HTMLExporter:
             f.write(html_content)
         
         return str(output_path)
+    
+    def generate_html_content(self, metadata: TutorialMetadata, steps: List[TutorialStep], 
+                             project_path: Path) -> str:
+        """
+        Generate HTML content without saving to file (for preview)
+        
+        Args:
+            metadata: Tutorial metadata
+            steps: List of tutorial steps
+            project_path: Path to tutorial project directory
+            
+        Returns:
+            HTML content as string
+        """
+        # Convert steps to HTML
+        steps_html = self._generate_steps_html(steps, project_path)
+        
+        # Generate complete HTML
+        click_css = self.click_highlighter.get_click_indicator_css()
+        html_content = self.template.format(
+            title=metadata.title,
+            description=metadata.description,
+            created_date=datetime.fromtimestamp(metadata.created_at).strftime("%B %d, %Y"),
+            step_count=metadata.step_count,
+            duration=format_duration(metadata.duration),
+            steps_html=steps_html,
+            click_css=click_css
+        )
+        
+        return html_content
     
     def _generate_steps_html(self, steps: List[TutorialStep], project_path: Path) -> str:
         """Generate HTML for tutorial steps"""
@@ -127,7 +187,7 @@ class HTMLExporter:
                     <button class="delete-step" onclick="deleteStep('{step.step_id}')">×</button>
                 </div>
                 <div class="step-content">
-                    <div class="step-description" contenteditable="true">{step.description}</div>
+                    <div class="step-description" contenteditable="true">{self._format_description(step.description)}</div>
                     {screenshot_html}
                     <div class="step-metadata">
                         <!-- Debug metadata removed for cleaner tutorials -->
@@ -143,8 +203,6 @@ class HTMLExporter:
     def _get_html_template(self) -> str:
         """Get the HTML template for tutorials"""
         return """<!DOCTYPE html>
-<!-- This is a standalone exported tutorial file -->
-<!-- Export buttons are disabled in standalone mode -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -231,11 +289,31 @@ class HTMLExporter:
             min-height: 25px;
             padding: 5px;
             border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.5;
         }}
         
         .step-description:focus {{
             outline: 2px solid #007bff;
             background: white;
+        }}
+        
+        .step-description pre {{
+            margin: 8px 0;
+            white-space: pre-wrap;
+        }}
+        
+        .step-description code {{
+            font-size: 0.9em;
+        }}
+        
+        .step-description strong {{
+            font-weight: 600;
+        }}
+        
+        .step-description em {{
+            font-style: italic;
         }}
         
         .step-screenshot {{
@@ -295,15 +373,6 @@ class HTMLExporter:
         {steps_html}
     </div>
     
-    <div class="export-controls">
-        <h3>Standalone Tutorial</h3>
-        <p style="color: #666; margin: 0;">This is an exported tutorial file. To edit or re-export, use the TutorialMaker web interface.</p>
-        <p style="color: #666; margin: 5px 0 0 0; font-size: 0.9em;">
-            <strong>💡 Tip:</strong> To edit this tutorial:<br>
-            • <strong>Development:</strong> Run <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">python main.py</code><br>
-            • <strong>Production:</strong> Run <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">./tutorialmaker</code> executable
-        </p>
-    </div>
 
     <script>
         // Standalone mode - disable all editing functionality
@@ -320,13 +389,10 @@ class HTMLExporter:
                 desc.style.backgroundColor = 'transparent';
             }});
             
-            // Add notice for users who try to click
+            // Prevent editing in exported files
             document.addEventListener('click', function(e) {{
                 if (e.target.classList.contains('step-description') || e.target.closest('.delete-step')) {{
                     e.preventDefault();
-                    if (confirm('This is a standalone exported file. Would you like instructions on how to edit tutorials?')) {{
-                        alert('To edit tutorials:\\n\\nDevelopment:\\n1. Run: python main.py\\n2. Browser opens automatically\\n\\nProduction:\\n1. Run: ./tutorialmaker executable\\n2. Browser opens automatically');
-                    }}
                 }}
             }});
         }});

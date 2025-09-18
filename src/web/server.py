@@ -73,6 +73,38 @@ class TutorialWebServer:
                 return datetime.fromtimestamp(timestamp).strftime('%B %d, %Y at %I:%M %p')
             except (ValueError, TypeError, OSError):
                 return "Invalid date"
+        
+        @self.app.template_filter('format_description')
+        def format_description(text):
+            """Format step descriptions with markdown-like formatting"""
+            if not text:
+                return ""
+            
+            import re
+            from markupsafe import Markup
+            
+            # Escape HTML first to prevent injection
+            text = str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            
+            # Convert ```code blocks``` first (before single backticks)
+            text = re.sub(r'```([^`]+?)```', r'<pre style="background: #f8f8f8; padding: 10px; border-radius: 5px; border-left: 4px solid #007bff; margin: 8px 0; overflow-x: auto;"><code style="font-family: monospace;">\1</code></pre>', text, flags=re.DOTALL)
+            
+            # Convert newlines to <br> tags
+            text = text.replace('\n', '<br>')
+            
+            # Convert **bold** to <strong>
+            text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+            
+            # Convert *italic* to <em>
+            text = re.sub(r'\*([^*]+?)\*', r'<em>\1</em>', text)
+            
+            # Convert `code` to <code>
+            text = re.sub(r'`([^`]+?)`', r'<code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</code>', text)
+            
+            # Preserve multiple spaces by converting them to non-breaking spaces
+            text = re.sub(r'  +', lambda m: '&nbsp;' * len(m.group()), text)
+            
+            return Markup(text)
     
     def _setup_routes(self):
         """Set up Flask routes"""
@@ -398,6 +430,30 @@ class TutorialWebServer:
                 return jsonify({'error': 'File not found'}), 404
             
             return send_file(file_path, as_attachment=True)
+        
+        @self.app.route('/preview/<tutorial_id>')
+        def preview_tutorial(tutorial_id: str):
+            """Generate live preview of tutorial"""
+            try:
+                # Load tutorial data
+                metadata = self.storage.load_tutorial_metadata(tutorial_id)
+                steps = self.storage.load_tutorial_steps(tutorial_id)
+                
+                if not metadata or not steps:
+                    return "Tutorial not found", 404
+                
+                # Generate preview HTML using HTMLExporter
+                from ..core.exporters import HTMLExporter
+                project_path = self.storage.get_project_path(tutorial_id)
+                
+                exporter = HTMLExporter()
+                html_content = exporter.generate_html_content(metadata, steps, project_path)
+                
+                # Return HTML for viewing (not download)
+                return html_content
+                
+            except Exception as e:
+                return f"Preview error: {str(e)}", 500
         
         @self.app.route('/api/recording/status')
         def api_recording_status():

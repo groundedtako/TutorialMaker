@@ -37,7 +37,7 @@
                 <button class="delete-step" onclick="deleteStep('{{ step.step_id }}')" title="Delete this step">×</button>
             </div>
             <div class="step-content">
-                <div class="step-description" contenteditable="true" data-original="{{ step.description }}">{{ step.description }}</div>
+                <div class="step-description" contenteditable="true" data-original="{{ step.description }}">{{ step.description|format_description }}</div>
                 {% if step.screenshot_path and step.screenshot_path != '' %}
                 <div class="screenshot-container">
                     {% set screenshot_filename = step.screenshot_path.split('/')[-1] if (step.screenshot_path and '/' in step.screenshot_path|string) else (step.screenshot_path|string) %}
@@ -174,6 +174,26 @@
         border-radius: 4px;
         border: 1px solid transparent;
         transition: all 0.2s;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        line-height: 1.5;
+    }
+    
+    .step-description pre {
+        margin: 8px 0;
+        white-space: pre-wrap;
+    }
+    
+    .step-description code {
+        font-size: 0.9em;
+    }
+    
+    .step-description strong {
+        font-weight: 600;
+    }
+    
+    .step-description em {
+        font-style: italic;
     }
     
     .step-description:focus {
@@ -603,8 +623,8 @@ async function exportTutorial() {
 }
 
 function previewTutorial() {
-    // Open the exported HTML file if it exists
-    const previewUrl = `/download/{{ tutorial_id }}/index.html`;
+    // Generate live preview of current tutorial
+    const previewUrl = `/preview/{{ tutorial_id }}`;
     window.open(previewUrl, '_blank');
 }
 

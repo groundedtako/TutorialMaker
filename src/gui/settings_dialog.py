@@ -34,8 +34,8 @@ class SettingsDialog:
         # Default settings
         defaults = {
             'recording': {
-                'auto_export': True,
-                'export_formats': ['html', 'word'],
+                'auto_export': False,
+                'export_formats': ['html'],
                 'debug_mode': False,
                 'pause_on_inactivity': False,
                 'inactivity_timeout': 30,
@@ -331,13 +331,13 @@ class SettingsDialog:
         """Load current settings into UI"""
         # Recording settings
         recording = self.settings['recording']
-        self.vars['auto_export'].set(recording.get('auto_export', True))
+        self.vars['auto_export'].set(recording.get('auto_export', False))
         self.vars['debug_mode'].set(recording.get('debug_mode', False))
         self.vars['pause_on_inactivity'].set(recording.get('pause_on_inactivity', False))
         self.vars['inactivity_timeout'].set(str(recording.get('inactivity_timeout', 30)))
         
         # Export formats
-        formats = recording.get('export_formats', ['html', 'word'])
+        formats = recording.get('export_formats', ['html'])
         self.vars['export_html'].set('html' in formats)
         self.vars['export_word'].set('word' in formats)
         self.vars['export_pdf'].set('pdf' in formats)

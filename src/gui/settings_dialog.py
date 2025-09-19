@@ -39,6 +39,7 @@ class SettingsDialog:
                 'debug_mode': False,
                 'pause_on_inactivity': False,
                 'inactivity_timeout': 30,
+                'default_monitor': None,  # None = auto-select, int = specific monitor
             },
             'ui': {
                 'start_minimized': False,
@@ -174,6 +175,27 @@ class SettingsDialog:
                        variable=self.vars['export_word']).pack(side=tk.LEFT, padx=(0, 15))
         ttk.Checkbutton(format_checkboxes, text="PDF", 
                        variable=self.vars['export_pdf']).pack(side=tk.LEFT)
+        
+        # Monitor selection
+        monitor_frame = ttk.LabelFrame(frame, text="Screen Selection", padding="10")
+        monitor_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        ttk.Label(monitor_frame, text="Default recording monitor:").pack(anchor=tk.W)
+        
+        monitor_selection_frame = ttk.Frame(monitor_frame)
+        monitor_selection_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        self.vars['default_monitor'] = tk.StringVar()
+        self.monitor_combo = ttk.Combobox(monitor_selection_frame, textvariable=self.vars['default_monitor'], 
+                                         width=40, state="readonly")
+        self.monitor_combo.pack(side=tk.LEFT, padx=(20, 10))
+        
+        refresh_btn = ttk.Button(monitor_selection_frame, text="Refresh", 
+                               command=self._refresh_monitors)
+        refresh_btn.pack(side=tk.LEFT)
+        
+        # Initialize monitor list
+        self._refresh_monitors()
         
         # Advanced settings
         advanced_frame = ttk.LabelFrame(frame, text="Advanced", padding="10")
@@ -385,6 +407,18 @@ class SettingsDialog:
             formats.append('pdf')
         recording['export_formats'] = formats
         
+        # Monitor selection
+        monitor_selection = self.vars['default_monitor'].get()
+        if monitor_selection.startswith("Auto-select"):
+            recording['default_monitor'] = None
+        else:
+            # Extract monitor number from selection like "Monitor 2: Name (1920x1080)"
+            try:
+                monitor_num = int(monitor_selection.split(":")[0].replace("Monitor ", ""))
+                recording['default_monitor'] = monitor_num
+            except (ValueError, IndexError):
+                recording['default_monitor'] = None
+        
         # UI settings
         ui = self.settings['ui']
         ui['start_minimized'] = self.vars['start_minimized'].get()
@@ -444,6 +478,41 @@ class SettingsDialog:
     def _cancel(self):
         """Cancel button - close without saving"""
         self._close()
+    
+    def _refresh_monitors(self):
+        """Refresh the list of available monitors"""
+        try:
+            screen_info = self.app.screen_capture.get_screen_info()
+            monitors = screen_info.get('monitors', [])
+            
+            # Create options list
+            options = ["Auto-select (show dialog for multiple monitors)"]
+            
+            for i, monitor in enumerate(monitors, 1):
+                # Format monitor info
+                name = monitor.get('name', f'Monitor {i}')
+                width = monitor.get('width', 0)
+                height = monitor.get('height', 0)
+                is_primary = monitor.get('is_primary', False)
+                primary_text = " (Primary)" if is_primary else ""
+                options.append(f"Monitor {i}: {name} ({width}x{height}){primary_text}")
+            
+            self.monitor_combo['values'] = options
+            
+            # Set current selection
+            current_monitor = self.settings['recording'].get('default_monitor')
+            if current_monitor is None:
+                self.vars['default_monitor'].set(options[0])  # Auto-select
+            elif isinstance(current_monitor, int) and 1 <= current_monitor <= len(monitors):
+                self.vars['default_monitor'].set(options[current_monitor])  # Specific monitor
+            else:
+                self.vars['default_monitor'].set(options[0])  # Fallback to auto-select
+                
+        except Exception as e:
+            print(f"Error refreshing monitors: {e}")
+            # Fallback options
+            self.monitor_combo['values'] = ["Auto-select (show dialog for multiple monitors)", "Monitor 1: Primary"]
+            self.vars['default_monitor'].set("Auto-select (show dialog for multiple monitors)")
     
     def _close(self):
         """Close dialog"""

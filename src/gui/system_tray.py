@@ -127,7 +127,7 @@ class SystemTrayManager:
         name = simpledialog.askstring("New Tutorial", "Enter tutorial name:")
         if name and name.strip():
             try:
-                tutorial_id = self.app.new_tutorial(name.strip())
+                tutorial_id = self.app.new_tutorial(name.strip(), use_gui_selector=True)
                 messagebox.showinfo("Success", f"Tutorial '{name}' created!\\nClick 'Start Recording' to begin.")
                 self._update_icon()
             except Exception as e:

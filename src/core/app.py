@@ -82,6 +82,7 @@ class TutorialMakerApp:
         self.web_mode: bool = False
         
         print("TutorialMaker initialized successfully")
+        print(f"DEBUG: Initial web_mode = {self.web_mode}")
         self._print_status()
     
     def _print_status(self):
@@ -145,7 +146,23 @@ class TutorialMakerApp:
             print(f"Screen selector not available: {e}")
             return 1  # Default to primary monitor
     
-    def new_tutorial(self, title: str = None, description: str = "", selected_monitor: Optional[int] = None) -> str:
+    def _get_default_monitor_from_settings(self) -> Optional[int]:
+        """Get default monitor from settings file"""
+        try:
+            from pathlib import Path
+            import json
+            
+            settings_file = Path.home() / "TutorialMaker" / "settings.json"
+            if settings_file.exists():
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                    return settings.get('recording', {}).get('default_monitor')
+        except Exception as e:
+            print(f"DEBUG: Error reading default monitor from settings: {e}")
+        
+        return None
+    
+    def new_tutorial(self, title: str = None, description: str = "", selected_monitor: Optional[int] = None, use_gui_selector: bool = None) -> str:
         """
         Create a new tutorial
         
@@ -175,39 +192,38 @@ class TutorialMakerApp:
                 selected_monitor = self.selected_monitor_id
                 print(f"DEBUG: Using pre-selected monitor {selected_monitor}")
             else:
-                print(f"DEBUG: No pre-selected monitor, checking if GUI is available...")
+                print(f"DEBUG: No pre-selected monitor, checking settings and GUI...")
                 
-                # Check if we're in web mode (avoid GUI dialogs)
-                if self.web_mode:
-                    print(f"DEBUG: Web mode detected, defaulting to primary monitor")
-                    selected_monitor = 1
+                # Check settings for default monitor
+                default_monitor = self._get_default_monitor_from_settings()
+                if default_monitor is not None:
+                    selected_monitor = default_monitor
+                    print(f"DEBUG: Using default monitor from settings: {selected_monitor}")
                 else:
-                    print(f"DEBUG: Desktop environment, checking screen count...")
-                    # Try to show screen selector if GUI is available
-                    try:
+                    # Auto-detect context: if use_gui_selector not specified, check screen count
+                    if use_gui_selector is None:
                         screen_info = self.screen_capture.get_screen_info()
                         monitor_count = screen_info.get('monitor_count', 1)
-                        print(f"DEBUG: Found {monitor_count} monitors")
-                        
-                        if monitor_count > 1:
-                            # Multiple monitors - try to show selector, but handle gracefully if it fails
-                            print(f"DEBUG: Multiple monitors detected, trying to show selector...")
-                            try:
-                                selected_monitor = self.select_recording_monitor()
-                                if selected_monitor is None:
-                                    print("DEBUG: Screen selection cancelled, using primary monitor")
-                                    selected_monitor = 1
-                                else:
-                                    print(f"DEBUG: User selected monitor {selected_monitor}")
-                            except Exception as selector_error:
-                                print(f"DEBUG: Screen selector failed: {selector_error}, using primary monitor")
+                        print(f"DEBUG: Auto-detecting context - found {monitor_count} monitors")
+                        use_gui_selector = monitor_count > 1  # Only show GUI selector if multiple monitors
+                    
+                    print(f"DEBUG: use_gui_selector = {use_gui_selector}")
+                    
+                    if use_gui_selector:
+                        print(f"DEBUG: Using GUI selector for screen selection...")
+                        try:
+                            selected_monitor = self.select_recording_monitor()
+                            if selected_monitor is None:
+                                print("DEBUG: Screen selection cancelled, using primary monitor")
                                 selected_monitor = 1
-                        else:
-                            # Single monitor - use primary
-                            print(f"DEBUG: Single monitor setup, using primary")
+                            else:
+                                print(f"DEBUG: User selected monitor {selected_monitor}")
+                        except Exception as selector_error:
+                            print(f"DEBUG: Screen selector failed: {selector_error}, using primary monitor")
                             selected_monitor = 1
-                    except Exception as e:
-                        print(f"DEBUG: Screen info failed: {e}, using primary monitor")
+                    else:
+                        # No GUI selector - use primary monitor
+                        print(f"DEBUG: No GUI selector, using primary monitor")
                         selected_monitor = 1
         
         # Create new session using SessionManager
@@ -531,14 +547,13 @@ class TutorialMakerApp:
     def start_web_server(self) -> str:
         """Start the web server for editing tutorials"""
         try:
-            # Set web mode to avoid GUI dialogs when called from web interface
-            self.web_mode = True
+            # Don't permanently set web_mode - let the caller context determine behavior
             url = self.web_server.start(open_browser=True)
-            print(f"✅ Web server started at {url}")
+            print(f"SUCCESS: Web server started at {url}")
             print("You can now edit and manage your tutorials in the browser.")
             return url
         except Exception as e:
-            print(f"⚠️  Failed to start web server: {e}")
+            print(f"WARNING: Failed to start web server: {e}")
             return ""
     
     @property

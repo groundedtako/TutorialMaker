@@ -167,20 +167,58 @@ class RecordingControlWindow:
                 print(f"Auto-sized recording controls: {final_width}x{final_height} (required: {req_width}x{req_height})")
     
     def _position_window(self):
-        """Position window in top-right corner of screen"""
+        """Position window intelligently - on different monitor when possible"""
         if not self.window:
             return
         
         # Get window dimensions
         self.window.update_idletasks()
         window_width = self.window.winfo_width()
-        screen_width = self.window.winfo_screenwidth()
         
-        # Position in top-right corner with some margin
-        x_pos = screen_width - window_width - 20
-        y_pos = 50
+        # Try to get smart positioning based on recording monitor
+        x_pos, y_pos = self._get_smart_position(window_width)
         
         self.window.geometry(f"+{x_pos}+{y_pos}")
+    
+    def _get_smart_position(self, window_width: int) -> tuple[int, int]:
+        """Get smart position for controls - prefer different monitor than recording"""
+        try:
+            # Get current session and recording monitor
+            current_session = getattr(self.app, 'current_session', None)
+            recording_monitor = None
+            
+            if current_session and hasattr(current_session, 'monitor_id'):
+                recording_monitor = current_session.monitor_id
+                print(f"DEBUG: Recording on monitor {recording_monitor}")
+            
+            # Get screen info
+            screen_info = self.app.screen_capture.get_screen_info()
+            monitors = screen_info.get('monitors', [])
+            
+            if len(monitors) > 1 and recording_monitor is not None:
+                # Multiple monitors - try to place on different monitor
+                for i, monitor in enumerate(monitors, 1):
+                    if i != recording_monitor:  # Different monitor
+                        # Position on top-right of this monitor
+                        monitor_x = monitor.get('x', 0)
+                        monitor_width = monitor.get('width', 1920)
+                        x_pos = monitor_x + monitor_width - window_width - 20
+                        y_pos = monitor.get('y', 0) + 50
+                        print(f"DEBUG: Placing controls on monitor {i} at ({x_pos}, {y_pos})")
+                        return x_pos, y_pos
+            
+            # Fallback to primary monitor or single monitor
+            screen_width = self.window.winfo_screenwidth()
+            x_pos = screen_width - window_width - 20
+            y_pos = 50
+            print(f"DEBUG: Using fallback position at ({x_pos}, {y_pos})")
+            return x_pos, y_pos
+            
+        except Exception as e:
+            print(f"DEBUG: Error in smart positioning: {e}")
+            # Fallback to simple positioning
+            screen_width = self.window.winfo_screenwidth()
+            return screen_width - window_width - 20, 50
     
     def _setup_bindings(self):
         """Set up event bindings"""

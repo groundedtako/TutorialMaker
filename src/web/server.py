@@ -483,7 +483,7 @@ class TutorialWebServer:
             print(f"DEBUG: Creating tutorial with title='{title}', description='{description}'")
 
             try:
-                tutorial_id = self.app_instance.new_tutorial(title, description)
+                tutorial_id = self.app_instance.new_tutorial(title, description, use_gui_selector=False)
                 print(f"DEBUG: Successfully created tutorial with ID: {tutorial_id}")
                 return jsonify({
                     'success': True,

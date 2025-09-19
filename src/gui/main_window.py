@@ -263,7 +263,7 @@ class MainWindow:
             return
             
         try:
-            tutorial_id = self.app.new_tutorial(name)
+            tutorial_id = self.app.new_tutorial(name, use_gui_selector=True)
             self.status_var.set(f"Created: {name}")
             self.start_btn.config(state='normal')
             self.new_btn.config(state='disabled')

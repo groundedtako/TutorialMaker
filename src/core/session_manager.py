@@ -37,6 +37,11 @@ class RecordingSession:
         self.last_event_time = 0.0
         self.selected_monitor = selected_monitor  # Monitor to record on
         self.logger = logger  # Session logger for detailed logging
+    
+    @property
+    def monitor_id(self) -> Optional[int]:
+        """Get the monitor ID for this session"""
+        return self.selected_monitor
         
     def start(self):
         """Start recording"""

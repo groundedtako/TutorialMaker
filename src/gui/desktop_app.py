@@ -42,6 +42,9 @@ class TutorialMakerDesktopApp:
             # Initialize core app
             self.core_app = TutorialMakerApp(debug_mode=self.debug_mode)
             
+            # Desktop app ready - screen selection will be context-aware
+            print(f"DEBUG: Desktop app initialized - screen selection will use GUI dialogs when appropriate")
+            
             # Initialize main window
             self.main_window = MainWindow(self.core_app)
             

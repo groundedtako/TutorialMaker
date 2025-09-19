@@ -39,7 +39,8 @@
       "Bash(\"venv/Scripts/python.exe\" run_tests.py)",
       "Bash(\"venv/Scripts/python.exe\" -m pytest tests/test_event_filter.py -v)",
       "Bash(\"venv/Scripts/python.exe\" -m pytest tests/test_event_filter.py -v --tb=short)",
-      "Bash(\"venv/Scripts/python.exe\" tests/test_event_filter.py)"
+      "Bash(\"venv/Scripts/python.exe\" tests/test_event_filter.py)",
+      "Bash(\"venv/Scripts/python.exe\" test_monitor_features.py)"
     ],
     "deny": [],
     "ask": [],

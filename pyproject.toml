@@ -62,8 +62,7 @@ gui = [
 "Documentation" = "https://github.com/YOUR_USERNAME/scribe_local/blob/main/README.md"
 
 [project.scripts]
-tutorialmaker = "src.main:main"
-tutorialmaker-server = "src.server:main"
+tutorialmaker = "__main__:main"
 
 [tool.setuptools]
 packages = ["src"]

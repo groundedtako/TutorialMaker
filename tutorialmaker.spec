@@ -7,6 +7,7 @@ This ensures all dependencies are bundled into the executable
 import os
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 # Get the current directory
 current_dir = Path.cwd()
@@ -91,6 +92,8 @@ hidden_imports = [
     'datetime',
     'pathlib',
     'uuid',
+    'keyboard',
+    'pystray',
     
     # Our application modules
     'src',
@@ -102,9 +105,20 @@ hidden_imports = [
     'src.core.smart_ocr',
     'src.core.storage',
     'src.core.exporters',
+    'src.core.session_manager',
+    'src.core.event_filter',
+    'src.core.event_monitor',
+    'src.core.event_processor',
     'src.web',
     'src.web.server',
     'src.web.route_helpers',
+    'src.gui',
+    'src.gui.desktop_app',
+    'src.gui.main_window',
+    'src.gui.recording_controls',
+    'src.gui.settings_dialog',
+    'src.gui.system_tray',
+    'src.gui.screen_selector',
     'src.utils',
     'src.utils.file_utils',
     'src.utils.api_utils',
@@ -114,6 +128,10 @@ hidden_imports = [
 datas = [
     # Application source code
     (str(src_dir), 'src'),
+    
+    # Root scripts
+    ('server.py', '.'),
+    ('__main__.py', '.'),
     
     # Web templates
     ('src/web/templates', 'src/web/templates'),
@@ -167,12 +185,8 @@ elif sys.platform == 'darwin':
         'objc',
     ])
 elif sys.platform.startswith('linux'):
-    # Linux-specific hidden imports
-    hidden_imports.extend([
-        'Xlib',
-        'Xlib.display',
-        'Xlib.X',
-    ])
+    # Linux-specific hidden imports (optional - fail gracefully if not available)
+    pass
 
 # Analysis configuration
 a = Analysis(

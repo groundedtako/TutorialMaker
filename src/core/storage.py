@@ -14,6 +14,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 
 from .events import MouseClickEvent, KeyPressEvent, TextInputEvent, EventType
+from .logger import get_logger
 
 @dataclass
 class TutorialStep:
@@ -63,6 +64,7 @@ class TutorialStorage:
         self.projects_path = self.base_path / "projects"
         self.templates_path = self.base_path / "templates"
         self.temp_path = self.base_path / "temp"
+        self.logger = get_logger('core.storage')
         
         self._ensure_directories()
     
@@ -139,7 +141,7 @@ class TutorialStorage:
         """
         project_path = self.get_project_path(tutorial_id)
         if not project_path:
-            print(f"Project not found: {tutorial_id}")
+            self.logger.error(f"Project not found: {tutorial_id}")
             return False
         
         try:
@@ -162,7 +164,7 @@ class TutorialStorage:
             return True
             
         except Exception as e:
-            print(f"Error saving tutorial step: {e}")
+            self.logger.error(f"Error saving tutorial step: {e}")
             return False
     
     def load_tutorial_steps(self, tutorial_id: str) -> Optional[List[TutorialStep]]:
@@ -199,7 +201,7 @@ class TutorialStorage:
             return steps
             
         except Exception as e:
-            print(f"Error loading tutorial steps: {e}")
+            self.logger.error(f"Error loading tutorial steps: {e}")
             return None
     
     def load_tutorial_metadata(self, tutorial_id: str) -> Optional[TutorialMetadata]:
@@ -219,7 +221,7 @@ class TutorialStorage:
             return TutorialMetadata(**metadata_data)
             
         except Exception as e:
-            print(f"Error loading tutorial metadata: {e}")
+            self.logger.error(f"Error loading tutorial metadata: {e}")
             return None
     
     def save_screenshot(self, tutorial_id: str, image, step_number: int) -> Optional[str]:
@@ -262,7 +264,7 @@ class TutorialStorage:
             return f"screenshots/{screenshot_filename}"
             
         except Exception as e:
-            print(f"Error saving screenshot: {e}")
+            self.logger.error(f"Error saving screenshot: {e}")
             return None
     
     def list_tutorials(self) -> List[TutorialMetadata]:
@@ -280,13 +282,13 @@ class TutorialStorage:
                             metadata = TutorialMetadata(**metadata_data)
                             tutorials.append(metadata)
                         except Exception as e:
-                            print(f"Error loading metadata for {project_dir}: {e}")
+                            self.logger.warning(f"Error loading metadata for {project_dir}: {e}")
             
             # Sort by creation date (newest first)
             tutorials.sort(key=lambda x: x.created_at, reverse=True)
             
         except Exception as e:
-            print(f"Error listing tutorials: {e}")
+            self.logger.error(f"Error listing tutorials: {e}")
         
         return tutorials
     
@@ -300,7 +302,7 @@ class TutorialStorage:
             shutil.rmtree(project_path)
             return True
         except Exception as e:
-            print(f"Error deleting tutorial: {e}")
+            self.logger.error(f"Error deleting tutorial: {e}")
             return False
     
     def delete_all_tutorials(self) -> Dict[str, bool]:
@@ -318,11 +320,11 @@ class TutorialStorage:
                 success = self.delete_tutorial(tutorial.tutorial_id)
                 results[tutorial.tutorial_id] = success
                 if success:
-                    print(f"Deleted tutorial: {tutorial.title} ({tutorial.tutorial_id})")
+                    self.logger.info(f"Deleted tutorial: {tutorial.title} ({tutorial.tutorial_id})")
                 else:
-                    print(f"Failed to delete tutorial: {tutorial.title} ({tutorial.tutorial_id})")
+                    self.logger.warning(f"Failed to delete tutorial: {tutorial.title} ({tutorial.tutorial_id})")
             except Exception as e:
-                print(f"Error deleting tutorial {tutorial.tutorial_id}: {e}")
+                self.logger.error(f"Error deleting tutorial {tutorial.tutorial_id}: {e}")
                 results[tutorial.tutorial_id] = False
         
         return results
@@ -350,7 +352,7 @@ class TutorialStorage:
                 json.dump(asdict(metadata), f, indent=2)
             return True
         except Exception as e:
-            print(f"Error saving metadata: {e}")
+            self.logger.error(f"Error saving metadata: {e}")
             return False
     
     def _save_steps(self, project_path: Path, steps: List[TutorialStep]) -> bool:
@@ -379,7 +381,7 @@ class TutorialStorage:
                 json.dump(steps_data, f, indent=2)
             return True
         except Exception as e:
-            print(f"Error saving steps: {e}")
+            self.logger.error(f"Error saving steps: {e}")
             return False
     
     def _save_events(self, project_path: Path, events: List) -> bool:
@@ -390,7 +392,7 @@ class TutorialStorage:
                 json.dump(events, f, indent=2)
             return True
         except Exception as e:
-            print(f"Error saving events: {e}")
+            self.logger.error(f"Error saving events: {e}")
             return False
     
     def export_tutorial_data(self, tutorial_id: str) -> Optional[Dict]:
@@ -426,5 +428,5 @@ class TutorialStorage:
                 'directories_exist': all(p.exists() for p in [self.projects_path, self.templates_path, self.temp_path])
             }
         except Exception as e:
-            print(f"Error getting storage stats: {e}")
+            self.logger.error(f"Error getting storage stats: {e}")
             return {'error': str(e)}

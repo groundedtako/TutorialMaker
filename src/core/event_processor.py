@@ -13,7 +13,7 @@ from .capture import ScreenCapture
 from .ocr import OCREngine, OCRResult
 from .smart_ocr import SmartOCRProcessor
 from .storage import TutorialStorage, TutorialStep
-
+from .logger import get_logger
 
 class EventProcessor:
     """Processes queued events into tutorial steps"""
@@ -29,6 +29,7 @@ class EventProcessor:
         self.smart_ocr = smart_ocr
         self.storage = storage
         self.debug_mode = debug_mode
+        self.logger = get_logger('core.event_processor')
     
     def process_events_to_steps(self, 
                                events: List[QueuedEvent], 
@@ -46,10 +47,10 @@ class EventProcessor:
             Number of steps created
         """
         if not events:
-            print("No events to process")
+            self.logger.info("No events to process")
             return 0
         
-        print(f"EventProcessor: Processing {len(events)} events into tutorial steps...")
+        self.logger.info(f"Processing {len(events)} events into tutorial steps...")
         steps_created = 0
         processed_step_number = 0  # Track processed steps separately from captured steps
         
@@ -68,9 +69,9 @@ class EventProcessor:
                     if self._process_keyboard_event(queued_event, tutorial_id, session, processed_step_number):
                         steps_created += 1
             except Exception as e:
-                print(f"EventProcessor: Error processing {queued_event.event_type} event: {e}")
+                self.logger.error(f"Error processing {queued_event.event_type} event: {e}")
         
-        print(f"EventProcessor: Created {steps_created} tutorial steps from {len(events)} events")
+        self.logger.info(f"Created {steps_created} tutorial steps from {len(events)} events")
         return steps_created
     
     def _process_mouse_click_event(self, queued_event: QueuedEvent, tutorial_id: str, session, step_number: int) -> bool:
@@ -79,7 +80,7 @@ class EventProcessor:
         screenshot = queued_event.screenshot
         
         if not screenshot:
-            print("EventProcessor: No screenshot available for click event")
+            self.logger.warning("No screenshot available for click event")
             return False
         
         try:
@@ -105,7 +106,7 @@ class EventProcessor:
                 screenshot_click_y = monitor_relative_y
             else:
                 # Fallback to basic calculation if coordinate info not available
-                print("EventProcessor: Warning - No coordinate info available, using fallback calculation")
+                self.logger.warning("No coordinate info available, using fallback calculation")
                 screen_info = self.screen_capture.get_screen_info()
                 screen_width = screen_info['width']
                 screen_height = screen_info['height']
@@ -163,12 +164,12 @@ class EventProcessor:
             
             # Save step
             self.storage.save_tutorial_step(tutorial_id, step)
-            print(f"EventProcessor: Created step {step_number}: {description}")
+            self.logger.info(f"Created step {step_number}: {description}")
             
             return True
             
         except Exception as e:
-            print(f"EventProcessor: Error processing mouse click: {e}")
+            self.logger.error(f"Error processing mouse click: {e}")
             return False
     
     def _process_manual_capture_event(self, queued_event: QueuedEvent, tutorial_id: str, session, step_number: int) -> bool:
@@ -177,7 +178,7 @@ class EventProcessor:
         screenshot = queued_event.screenshot
         
         if not screenshot:
-            print("EventProcessor: No screenshot available for manual capture event")
+            self.logger.warning("No screenshot available for manual capture event")
             return False
         
         try:
@@ -203,7 +204,7 @@ class EventProcessor:
                 screenshot_click_y = monitor_relative_y
             else:
                 # Fallback to basic calculation if coordinate info not available
-                print("EventProcessor: Warning - No coordinate info available for manual capture, using fallback calculation")
+                self.logger.warning("No coordinate info available for manual capture, using fallback calculation")
                 screen_info = self.screen_capture.get_screen_info()
                 screen_width = screen_info['width']
                 screen_height = screen_info['height']
@@ -253,12 +254,12 @@ class EventProcessor:
             
             # Save step
             self.storage.save_tutorial_step(tutorial_id, step)
-            print(f"EventProcessor: Created manual capture step {step_number}: {description}")
+            self.logger.info(f"Created manual capture step {step_number}: {description}")
             
             return True
             
         except Exception as e:
-            print(f"EventProcessor: Error processing manual capture: {e}")
+            self.logger.error(f"Error processing manual capture: {e}")
             return False
     
     def _process_keyboard_event(self, queued_event: QueuedEvent, tutorial_id: str, session, step_number: int) -> bool:
@@ -314,7 +315,7 @@ class EventProcessor:
                         
                         screenshot = self.screen_capture.capture_full_screen(monitor_id=target_monitor)
                     except Exception as e:
-                        print(f"EventProcessor: Error detecting monitor, using primary: {e}")
+                        self.logger.warning(f"Error detecting monitor, using primary: {e}")
                         screenshot = self.screen_capture.capture_full_screen(monitor_id=1)
                 
                 # Use provided step number (don't increment session counter again)
@@ -341,14 +342,14 @@ class EventProcessor:
                 
                 # Save step
                 self.storage.save_tutorial_step(tutorial_id, step)
-                print(f"EventProcessor: Created step {step_number}: {description}")
+                self.logger.info(f"Created step {step_number}: {description}")
                 
                 return True
             
             return False
             
         except Exception as e:
-            print(f"EventProcessor: Error processing keyboard event: {e}")
+            self.logger.error(f"Error processing keyboard event: {e}")
             return False
     
     def _generate_click_description(self, event: MouseClickEvent, ocr_result: OCRResult) -> str:
@@ -413,9 +414,9 @@ class EventProcessor:
                 json_events.append(json_event)
             
             self.storage._save_events(project_path, json_events)
-            print(f"EventProcessor: Saved {len(json_events)} raw events to events.json")
+            self.logger.info(f"Saved {len(json_events)} raw events to events.json")
             return True
             
         except Exception as e:
-            print(f"EventProcessor: Error saving raw events: {e}")
+            self.logger.error(f"Error saving raw events: {e}")
             return False

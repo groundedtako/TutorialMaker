@@ -148,7 +148,7 @@ class TutorialMakerApp:
             
         except (ImportError, tk.TclError, Exception) as e:
             # GUI not available or error occurred
-            print(f"Screen selector not available: {e}")
+            logger.error(f"Screen selector not available: {e}")
             return 1  # Default to primary monitor
     
     def _get_default_monitor_from_settings(self) -> Optional[int]:
@@ -163,7 +163,7 @@ class TutorialMakerApp:
                     settings = json.load(f)
                     return settings.get('recording', {}).get('default_monitor')
         except Exception as e:
-            print(f"DEBUG: Error reading default monitor from settings: {e}")
+            logger.debug(f"Error reading default monitor from settings: {e}")
         
         return None
     
@@ -179,11 +179,11 @@ class TutorialMakerApp:
         Returns:
             Tutorial ID
         """
-        print(f"DEBUG: new_tutorial called with title='{title}', selected_monitor={selected_monitor}")
+        self.logger.debug(f"new_tutorial called with title='{title}', selected_monitor={selected_monitor}")
         
         # Create new tutorial project
         tutorial_id = self.storage.create_tutorial_project(title, description)
-        print(f"DEBUG: Created tutorial project with ID: {tutorial_id}")
+        self.logger.debug(f"Created tutorial project with ID: {tutorial_id}")
         
         # Get the actual title that was saved (in case it was auto-generated)
         metadata = self.storage.load_tutorial_metadata(tutorial_id)
@@ -191,54 +191,54 @@ class TutorialMakerApp:
         
         # If no monitor selected, check if one was set via web interface or show selector
         if selected_monitor is None:
-            print(f"DEBUG: No monitor selected, checking options...")
+            self.logger.debug("No monitor selected, checking options...")
             # Check if monitor was pre-selected (e.g., via web interface)
             if self.selected_monitor_id is not None:
                 selected_monitor = self.selected_monitor_id
-                print(f"DEBUG: Using pre-selected monitor {selected_monitor}")
+                self.logger.debug(f"Using pre-selected monitor {selected_monitor}")
             else:
-                print(f"DEBUG: No pre-selected monitor, checking settings and GUI...")
+                self.logger.debug("No pre-selected monitor, checking settings and GUI...")
                 
                 # Check settings for default monitor
                 default_monitor = self._get_default_monitor_from_settings()
                 if default_monitor is not None:
                     selected_monitor = default_monitor
-                    print(f"DEBUG: Using default monitor from settings: {selected_monitor}")
+                    self.logger.debug(f"Using default monitor from settings: {selected_monitor}")
                 else:
                     # Auto-detect context: if use_gui_selector not specified, check screen count
                     if use_gui_selector is None:
                         screen_info = self.screen_capture.get_screen_info()
                         monitor_count = screen_info.get('monitor_count', 1)
-                        print(f"DEBUG: Auto-detecting context - found {monitor_count} monitors")
+                        self.logger.debug(f"Auto-detecting context - found {monitor_count} monitors")
                         use_gui_selector = monitor_count > 1  # Only show GUI selector if multiple monitors
                     
-                    print(f"DEBUG: use_gui_selector = {use_gui_selector}")
+                    self.logger.debug(f"use_gui_selector = {use_gui_selector}")
                     
                     if use_gui_selector:
-                        print(f"DEBUG: Using GUI selector for screen selection...")
+                        self.logger.debug("Using GUI selector for screen selection...")
                         try:
                             selected_monitor = self.select_recording_monitor()
                             if selected_monitor is None:
-                                print("DEBUG: Screen selection cancelled, using primary monitor")
+                                self.logger.debug("Screen selection cancelled, using primary monitor")
                                 selected_monitor = 1
                             else:
-                                print(f"DEBUG: User selected monitor {selected_monitor}")
+                                self.logger.debug(f"User selected monitor {selected_monitor}")
                         except Exception as selector_error:
-                            print(f"DEBUG: Screen selector failed: {selector_error}, using primary monitor")
+                            self.logger.debug(f"Screen selector failed: {selector_error}, using primary monitor")
                             selected_monitor = 1
                     else:
                         # No GUI selector - use primary monitor
-                        print(f"DEBUG: No GUI selector, using primary monitor")
+                        self.logger.debug("No GUI selector, using primary monitor")
                         selected_monitor = 1
         
         # Create new session using SessionManager
-        print(f"DEBUG: Creating session with monitor {selected_monitor}")
+        self.logger.debug(f"Creating session with monitor {selected_monitor}")
         session = self.session_manager.create_session(tutorial_id, actual_title, selected_monitor)
-        print(f"DEBUG: Session created successfully")
+        self.logger.debug("Session created successfully")
         
         monitor_text = f" (Monitor {selected_monitor})" if selected_monitor else ""
-        print(f"New tutorial created: {session.title}{monitor_text}")
-        print(f"DEBUG: new_tutorial returning tutorial_id: {tutorial_id}")
+        self.logger.info(f"New tutorial created: {session.title}{monitor_text}")
+        self.logger.debug(f"new_tutorial returning tutorial_id: {tutorial_id}")
         return tutorial_id
     
     # UI Callback System for cross-interface synchronization
@@ -275,7 +275,7 @@ class TutorialMakerApp:
             try:
                 callback(event_type, data)
             except Exception as e:
-                print(f"Warning: UI callback error: {e}")
+                self.logger.warning(f"UI callback error: {e}")
     
     def start_recording(self) -> bool:
         """
@@ -325,15 +325,14 @@ class TutorialMakerApp:
                 time.time() - last_event.timestamp < 2.0):
                 self.event_queue.remove_last_event()
                 if self.debug_mode:
-                    print("DEBUG: Removed stop button click from event queue")
+                    self.logger.debug("Removed stop button click from event queue")
             elif self.debug_mode:
-                print(f"DEBUG: Keeping last event in queue ({last_event.event_type}, {time.time() - last_event.timestamp:.1f}s ago)")
+                self.logger.debug(f"Keeping last event in queue ({last_event.event_type}, {time.time() - last_event.timestamp:.1f}s ago)")
         
         tutorial_id = self.session_manager.stop_recording()
         if tutorial_id:
             self._notify_ui_callbacks('recording_stopped', {'tutorial_id': tutorial_id})
         return tutorial_id
-    
     def _on_mouse_click(self, event: MouseClickEvent):
         """Handle mouse click events - capture screenshot and calculate coordinates, then add to queue during recording"""
         # Check if we have an active recording session
@@ -351,7 +350,7 @@ class TutorialMakerApp:
             
             if not session.is_event_on_selected_monitor(event.x, event.y, monitors):
                 if self.debug_mode:
-                    print(f"DEBUG: Ignoring click at ({event.x}, {event.y}) - not on selected monitor {session.selected_monitor}")
+                    self.logger.debug(f"Ignoring click at ({event.x}, {event.y}) - not on selected monitor {session.selected_monitor}")
                 return
         
         # Apply filtering (mainly for keystroke filtering and post-stop/pause filtering)
@@ -359,7 +358,7 @@ class TutorialMakerApp:
             filter_decision = self.event_filter.should_capture_event(event, session)
             if not filter_decision.should_capture:
                 if self.debug_mode:
-                    print(f"DEBUG: Filtered {event} - Reason: {filter_decision.reason}")
+                    self.logger.debug(f"Filtered {event} - Reason: {filter_decision.reason}")
                 return
         
         # Transform coordinates using centralized coordinate handler
@@ -386,7 +385,7 @@ class TutorialMakerApp:
             session.logger.log_mouse_click(event, step_count)
         
         if self.debug_mode:
-            print(f"DEBUG: Queued mouse click at ({event.x}, {event.y}) - Step {step_count}")
+            self.logger.debug(f"Queued mouse click at ({event.x}, {event.y}) - Step {step_count}")
     
     def _on_keyboard_event(self, event: KeyPressEvent):
         """Handle keyboard events - add to queue during recording"""
@@ -403,7 +402,7 @@ class TutorialMakerApp:
             filter_decision = self.event_filter.should_capture_event(event, session)
             if not filter_decision.should_capture:
                 if self.debug_mode:
-                    print(f"DEBUG: Filtered keyboard event '{event.key}' - Reason: {filter_decision.reason}")
+                    self.logger.debug(f"Filtered keyboard event '{event.key}' - Reason: {filter_decision.reason}")
                 return
         
         # Add to event queue
@@ -421,21 +420,21 @@ class TutorialMakerApp:
         if should_increment:
             step_count = self.session_manager.increment_step_counter()
             if self.debug_mode:
-                print(f"DEBUG: Queued keyboard event '{event.key}' - Step {step_count}")
+                self.logger.debug(f"Queued keyboard event '{event.key}' - Step {step_count}")
         else:
             if self.debug_mode:
-                print(f"DEBUG: Queued keyboard event '{event.key}' (no step increment)")
+                self.logger.debug(f"Queued keyboard event '{event.key}' (no step increment)")
     
     def _on_manual_capture(self, event: ManualCaptureEvent):
         """Handle manual capture events - capture screenshot and add to queue during recording"""
         # Check if we have an active recording session
         if not self.session_manager.has_active_session():
-            print("Manual capture: No active recording session")
+            self.logger.warning("Manual capture: No active recording session")
             return
         
         session = self.session_manager.current_session
         if not session or not session.is_recording():
-            print("Manual capture: Not recording")
+            self.logger.warning("Manual capture: Not recording")
             return
         
         # Check if event is on the selected monitor (ignore events on other monitors)
@@ -445,7 +444,7 @@ class TutorialMakerApp:
             
             if not session.is_event_on_selected_monitor(event.x, event.y, monitors):
                 if self.debug_mode:
-                    print(f"DEBUG: Ignoring manual capture at ({event.x}, {event.y}) - not on selected monitor {session.selected_monitor}")
+                    self.logger.debug(f"Ignoring manual capture at ({event.x}, {event.y}) - not on selected monitor {session.selected_monitor}")
                 return
         
         # Apply filtering (mainly for post-stop/pause filtering)
@@ -453,7 +452,7 @@ class TutorialMakerApp:
             filter_decision = self.event_filter.should_capture_event(event, session)
             if not filter_decision.should_capture:
                 if self.debug_mode:
-                    print(f"DEBUG: Filtered manual capture at ({event.x}, {event.y}) - Reason: {filter_decision.reason}")
+                    self.logger.debug(f"Filtered manual capture at ({event.x}, {event.y}) - Reason: {filter_decision.reason}")
                 return
         
         # Transform coordinates using centralized coordinate handler
@@ -479,9 +478,9 @@ class TutorialMakerApp:
         if session.logger:
             session.logger.log_manual_capture(event, step_count, "hotkey")
         
-        print(f"Manual capture recorded at ({event.x}, {event.y}) - Step {step_count}")
+        self.logger.info(f"Manual capture recorded at ({event.x}, {event.y}) - Step {step_count}")
         if self.debug_mode:
-            print(f"DEBUG: Queued manual capture at ({event.x}, {event.y}) - Step {step_count}")
+            self.logger.debug(f"Queued manual capture at ({event.x}, {event.y}) - Step {step_count}")
     
     def trigger_manual_capture(self):
         """Public method to trigger manual capture via hotkey or UI"""
@@ -498,13 +497,13 @@ class TutorialMakerApp:
         try:
             # Use the existing EventMonitor instead of GlobalHotkeyManager
             self.event_monitor.set_manual_capture_hotkey(self._manual_capture_hotkey)
-            print(f"Manual capture hotkey configured: '{self._manual_capture_hotkey}'")
-            print("Hotkey will be active when event monitoring is running")
+            self.logger.info(f"Manual capture hotkey configured: '{self._manual_capture_hotkey}'")
+            self.logger.info("Hotkey will be active when event monitoring is running")
             return True
                 
         except Exception as e:
-            print(f"Manual capture hotkey setup failed: {e}")
-            print("Manual capture will be available through direct method calls only")
+            self.logger.error(f"Manual capture hotkey setup failed: {e}")
+            self.logger.info("Manual capture will be available through direct method calls only")
             return False
     
     def cleanup_hotkeys(self):
@@ -586,9 +585,9 @@ class TutorialMakerApp:
                 time.time() - last_event.timestamp < 2.0):
                 self.event_queue.remove_last_event()
                 if self.debug_mode:
-                    print("DEBUG: Removed toggle button click from event queue")
+                    self.logger.debug("Removed toggle button click from event queue")
             elif self.debug_mode:
-                print(f"DEBUG: Keeping last event in queue ({last_event.event_type}, {time.time() - last_event.timestamp:.1f}s ago)")
+                self.logger.debug(f"Keeping last event in queue ({last_event.event_type}, {time.time() - last_event.timestamp:.1f}s ago)")
         
         enabled = self.event_filter.toggle_keystroke_filtering()
         return enabled
@@ -598,11 +597,11 @@ class TutorialMakerApp:
         try:
             # Don't permanently set web_mode - let the caller context determine behavior
             url = self.web_server.start(open_browser=True)
-            print(f"SUCCESS: Web server started at {url}")
-            print("You can now edit and manage your tutorials in the browser.")
+            self.logger.info(f"Web server started at {url}")
+            self.logger.info("You can now edit and manage your tutorials in the browser.")
             return url
         except Exception as e:
-            print(f"WARNING: Failed to start web server: {e}")
+            self.logger.warning(f"Failed to start web server: {e}")
             return ""
     
     @property
@@ -646,7 +645,7 @@ class TutorialMakerApp:
                     elif cmd == "new":
                         title = " ".join(command[1:]) if len(command) > 1 else None
                         tutorial_id = self.new_tutorial(title)
-                        print(f"Created tutorial: {tutorial_id}")
+                        self.logger.info(f"Created tutorial: {tutorial_id}")
                     elif cmd == "start":
                         self.start_recording()
                     elif cmd == "pause":
@@ -656,7 +655,7 @@ class TutorialMakerApp:
                     elif cmd == "stop":
                         tutorial_id = self.stop_recording()
                         if tutorial_id:
-                            print(f"Tutorial saved: {tutorial_id}")
+                            self.logger.info(f"Tutorial saved: {tutorial_id}")
                     elif cmd == "list":
                         tutorials = self.list_tutorials()
                         if tutorials:
@@ -684,14 +683,14 @@ class TutorialMakerApp:
                 except KeyboardInterrupt:
                     break
                 except Exception as e:
-                    print(f"Error: {e}")
+                    self.logger.error(f"Error: {e}")
         
         finally:
             self.shutdown()
     
     def shutdown(self):
         """Clean shutdown of the application"""
-        print("\nShutting down...")
+        self.logger.info("Shutting down...")
         
         # Stop any recording
         if self.session_manager.has_active_session():
@@ -708,4 +707,4 @@ class TutorialMakerApp:
         self.ocr_engine.clear_cache()
         
         self.running = False
-        print("Shutdown complete")
+        self.logger.info("Shutdown complete")

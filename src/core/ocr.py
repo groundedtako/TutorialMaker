@@ -6,6 +6,7 @@ Local-only text extraction from images
 import re
 import time
 from typing import Optional, Dict, List, Tuple
+from .logger import get_logger
 try:
     from PIL import Image, ImageEnhance, ImageFilter
     PIL_AVAILABLE = True
@@ -133,18 +134,19 @@ class OCREngine:
         self.easyocr_available = EASYOCR_AVAILABLE
         self.easyocr_reader = None
         self.ocr_cache = {}  # Cache results to avoid reprocessing
+        self.logger = get_logger('core.ocr')
         
         # Initialize EasyOCR if available
         if self.easyocr_available:
             try:
                 self.easyocr_reader = easyocr.Reader(['en'], gpu=False)
-                print("EasyOCR initialized")
+                self.logger.info("EasyOCR initialized")
             except Exception as e:
-                print(f"Failed to initialize EasyOCR: {e}")
+                self.logger.warning(f"Failed to initialize EasyOCR: {e}")
                 self.easyocr_available = False
         
         if not self.tesseract_available and not self.easyocr_available:
-            print("Info: Running in mock OCR mode (no text extraction)")
+            self.logger.info("Running in mock OCR mode (no text extraction)")
     
     def extract_text(self, image: Image.Image, preprocessing: bool = True) -> OCRResult:
         """
@@ -233,7 +235,7 @@ class OCREngine:
             return OCRResult(text, confidence, "tesseract")
             
         except Exception as e:
-            print(f"Tesseract OCR failed: {e}")
+            self.logger.warning(f"Tesseract OCR failed: {e}")
             self.tesseract_available = False
             return OCRResult()
     
@@ -264,7 +266,7 @@ class OCREngine:
             return OCRResult()
             
         except Exception as e:
-            print(f"EasyOCR failed: {e}")
+            self.logger.warning(f"EasyOCR failed: {e}")
             return OCRResult()
     
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
@@ -292,7 +294,7 @@ class OCREngine:
             return image
             
         except Exception as e:
-            print(f"Image preprocessing failed: {e}")
+            self.logger.warning(f"Image preprocessing failed: {e}")
             return image
     
     def _preprocess_for_buttons(self, image: Image.Image) -> Image.Image:
@@ -312,7 +314,7 @@ class OCREngine:
             return Image.fromarray(binary)
             
         except Exception as e:
-            print(f"Button preprocessing failed: {e}")
+            self.logger.warning(f"Button preprocessing failed: {e}")
             return self._preprocess_image(image)
     
     def _preprocess_high_contrast(self, image: Image.Image) -> Image.Image:
@@ -333,7 +335,7 @@ class OCREngine:
             return Image.fromarray(binary)
             
         except Exception as e:
-            print(f"High contrast preprocessing failed: {e}")
+            self.logger.warning(f"High contrast preprocessing failed: {e}")
             return image
     
     def _hash_image(self, image: Image.Image) -> str:

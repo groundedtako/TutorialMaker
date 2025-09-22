@@ -18,6 +18,7 @@ import logging
 
 from ..core.storage import TutorialStorage, TutorialMetadata, TutorialStep
 from ..core.exporters import TutorialExporter
+from ..core.logger import get_logger
 from ..utils.file_utils import open_file_location, get_tutorial_file_info
 from .route_helpers import (
     load_and_validate_tutorial, render_tutorial_page, handle_tutorial_error,
@@ -39,6 +40,7 @@ class TutorialWebServer:
         self.exporter = TutorialExporter(storage)
         self.port = port
         self.app_instance = None  # Reference to main app instance for session status
+        self.logger = get_logger('web.server')
         
         # For cross-interface synchronization
         self.last_state_change = 0  # Timestamp of last state change
@@ -126,7 +128,7 @@ class TutorialWebServer:
                 metadata, steps = load_and_validate_tutorial(self.storage, tutorial_id)
                 
                 # Log successful load
-                print(f"SUCCESS loading tutorial {tutorial_id}: {metadata.title} ({len(steps)} steps)")
+                self.logger.info(f"Successfully loaded tutorial {tutorial_id}: {metadata.title} ({len(steps)} steps)")
                 
                 return render_tutorial_page(metadata, steps, tutorial_id)
                 
@@ -473,27 +475,27 @@ class TutorialWebServer:
         @self.app.route('/api/recording/new', methods=['POST'])
         def api_new_recording():
             """API: Create new recording session"""
-            print(f"DEBUG: api_new_recording called")
+            self.logger.debug("api_new_recording called")
             
             if not self.app_instance:
-                print(f"ERROR: No app instance connected")
+                self.logger.error("No app instance connected")
                 return jsonify({'error': 'No app instance connected'}), 500
             
             data = request.get_json()
             title = data.get('title', '') if data else ''
             description = data.get('description', '') if data else ''
             
-            print(f"DEBUG: Creating tutorial with title='{title}', description='{description}'")
+            self.logger.debug(f"Creating tutorial with title='{title}', description='{description}'")
 
             try:
                 tutorial_id = self.app_instance.new_tutorial(title, description, use_gui_selector=False)
-                print(f"DEBUG: Successfully created tutorial with ID: {tutorial_id}")
+                self.logger.debug(f"Successfully created tutorial with ID: {tutorial_id}")
                 return jsonify({
                     'success': True,
                     'tutorial_id': tutorial_id
                 })
             except Exception as e:
-                print(f"ERROR: Failed to create tutorial: {e}")
+                self.logger.error(f"Failed to create tutorial: {e}")
                 import traceback
                 traceback.print_exc()
                 return jsonify({'error': str(e)}), 500
@@ -639,7 +641,7 @@ class TutorialWebServer:
                                     'thumbnail': f"data:image/png;base64,{img_data}"
                                 })
                         except Exception as e:
-                            print(f"Failed to capture monitor {monitor['id']}: {e}")
+                            self.logger.warning(f"Failed to capture monitor {monitor['id']}: {e}")
                             # Add monitor without thumbnail
                             monitor_data.append({
                                 'id': monitor['id'],
@@ -709,7 +711,7 @@ class TutorialWebServer:
         if open_browser:
             webbrowser.open(url)
         
-        print(f"Tutorial web server started at {url}")
+        self.logger.info(f"Tutorial web server started at {url}")
         return url
     
     def stop(self):
@@ -736,5 +738,5 @@ class TutorialWebServer:
         """Handle recording state changes from other interfaces"""
         import time
         self.last_state_change = time.time()
-        print(f"DEBUG: Web server notified of state change: {event_type}")
+        self.logger.debug(f"Web server notified of state change: {event_type}")
     

@@ -10,6 +10,7 @@ from typing import Callable, Optional, Dict, Any, List
 from dataclasses import dataclass, asdict
 from enum import Enum
 import json
+from .logger import get_logger
 
 try:
     from pynput import mouse, keyboard
@@ -84,6 +85,7 @@ class EventMonitor:
         self.is_monitoring = False
         self.mouse_listener = None
         self.keyboard_listener = None
+        self.logger = get_logger('core.events')
         # Event callbacks
         self.mouse_click_callback: Optional[Callable] = None
         self.key_press_callback: Optional[Callable] = None
@@ -111,7 +113,7 @@ class EventMonitor:
         self._double_click_threshold = self._get_system_double_click_interval()
         self._double_click_distance = 10  # pixels tolerance for double-click
         if not PYNPUT_AVAILABLE:
-            print("pynput not available. Please install: pip install pynput")
+            self.logger.warning("pynput not available. Please install: pip install pynput")
     
     def _get_system_double_click_interval(self) -> float:
         """Get system double-click interval in seconds"""
@@ -144,7 +146,7 @@ class EventMonitor:
                             return 0.4  # Default for most Linux systems
                 return 0.4
         except Exception as e:
-            print(f"Could not get system double-click interval: {e}")
+            self.logger.debug(f"Could not get system double-click interval: {e}")
         
         # Fallback to reasonable default (400ms)
         return 0.4
@@ -188,7 +190,7 @@ class EventMonitor:
         """Set the hotkey for manual capture"""
         self.manual_capture_hotkey = hotkey
         self.manual_capture_enabled = True
-        print(f"Manual capture hotkey set to: '{hotkey}'")
+        self.logger.info(f"Manual capture hotkey set to: '{hotkey}'")
     
     def start_monitoring(self) -> bool:
         """
@@ -198,37 +200,37 @@ class EventMonitor:
             True if monitoring started successfully, False otherwise
         """
         if not PYNPUT_AVAILABLE:
-            print("Cannot start monitoring: pynput not available")
+            self.logger.error("Cannot start monitoring: pynput not available")
             return False
         
         if self.is_monitoring:
-            print("Already monitoring")
+            self.logger.debug("Already monitoring")
             return True
         
         try:
             # Start mouse listener
             if self._start_mouse_listener():
                 self.has_mouse_access = True
-                print("Mouse monitoring started")
+                self.logger.info("Mouse monitoring started")
             else:
-                print("Failed to start mouse monitoring (permissions?)")
+                self.logger.warning("Failed to start mouse monitoring (permissions?)")
             
             # Start keyboard listener
             if self._start_keyboard_listener():
                 self.has_keyboard_access = True
-                print("Keyboard monitoring started")
+                self.logger.info("Keyboard monitoring started")
             else:
-                print("Failed to start keyboard monitoring (permissions?)")
+                self.logger.warning("Failed to start keyboard monitoring (permissions?)")
             
             if self.has_mouse_access or self.has_keyboard_access:
                 self.is_monitoring = True
                 return True
             else:
-                print("Failed to start any monitoring")
+                self.logger.error("Failed to start any monitoring")
                 return False
                 
         except Exception as e:
-            print(f"Error starting monitoring: {e}")
+            self.logger.error(f"Error starting monitoring: {e}")
             return False
     
     def stop_monitoring(self):
@@ -252,7 +254,7 @@ class EventMonitor:
         self.has_mouse_access = False
         self.has_keyboard_access = False
         
-        print("Event monitoring stopped")
+        self.logger.info("Event monitoring stopped")
     
     def _start_mouse_listener(self) -> bool:
         """Start mouse event listener"""
@@ -265,7 +267,7 @@ class EventMonitor:
             self.mouse_listener.start()
             return True
         except Exception as e:
-            print(f"Failed to start mouse listener: {e}")
+            self.logger.error(f"Failed to start mouse listener: {e}")
             return False
     
     def _start_keyboard_listener(self) -> bool:
@@ -279,7 +281,7 @@ class EventMonitor:
             self.keyboard_listener.start()
             return True
         except Exception as e:
-            print(f"Failed to start keyboard listener: {e}")
+            self.logger.error(f"Failed to start keyboard listener: {e}")
             return False
     
     def _on_mouse_click(self, x: int, y: int, button: Button, pressed: bool):
@@ -339,7 +341,7 @@ class EventMonitor:
                     try:
                         self.mouse_click_callback(event)
                     except Exception as e:
-                        print(f"Error in mouse callback: {e}")
+                        self.logger.error(f"Error in mouse callback: {e}")
             else:
                 # Drag detected (logic ready for future use)
                 # Example for future:
@@ -356,7 +358,7 @@ class EventMonitor:
                 #     try:
                 #         self.mouse_click_callback(event)
                 #     except Exception as e:
-                #         print(f"Error in mouse callback: {e}")
+                #         self.logger.error(f"Error in mouse callback: {e}")
                 pass
             self._press_pos = None
             self._press_time = None
@@ -385,7 +387,7 @@ class EventMonitor:
         if (self.manual_capture_enabled and 
             self.manual_capture_hotkey and 
             key_str == self.manual_capture_hotkey):
-            print(f"Manual capture hotkey '{key_str}' detected!")
+            self.logger.debug(f"Manual capture hotkey '{key_str}' detected!")
             
             # Log hotkey detection if we have access to a session logger
             # (We'll need to find a way to pass the logger to EventMonitor)
@@ -414,7 +416,7 @@ class EventMonitor:
             try:
                 self.key_press_callback(event)
             except Exception as e:
-                print(f"Error in keyboard callback: {e}")
+                self.logger.error(f"Error in keyboard callback: {e}")
     
     def _on_key_release(self, key):
         """Handle key release events (currently unused)"""
@@ -448,7 +450,7 @@ class EventMonitor:
                     return key_str, True, None
                     
         except Exception as e:
-            print(f"Error processing key: {e}")
+            self.logger.error(f"Error processing key: {e}")
             return "unknown", True, None
     
     def _handle_text_input(self, char: str, timestamp: float):
@@ -494,7 +496,7 @@ class EventMonitor:
                     )
                     self.key_press_callback(key_event)
                 except Exception as e:
-                    print(f"Error in text input callback: {e}")
+                    self.logger.error(f"Error in text input callback: {e}")
         
         # Clear session
         self.current_text_session = []
@@ -502,13 +504,13 @@ class EventMonitor:
     def trigger_manual_capture(self):
         """Trigger a manual screenshot capture at current mouse position"""
         if not self.is_monitoring:
-            print("EventMonitor: Cannot trigger manual capture - monitoring not active")
+            self.logger.warning("Cannot trigger manual capture - monitoring not active")
             return
         
         try:
             # Get current mouse position
             if not PYNPUT_AVAILABLE:
-                print("EventMonitor: Cannot get mouse position - pynput not available")
+                self.logger.error("Cannot get mouse position - pynput not available")
                 return
             
             from pynput.mouse import Controller as MouseController
@@ -527,12 +529,12 @@ class EventMonitor:
                 try:
                     self.manual_capture_callback(event)
                 except Exception as e:
-                    print(f"Error in manual capture callback: {e}")
+                    self.logger.error(f"Error in manual capture callback: {e}")
             
-            print(f"Manual capture triggered at ({x}, {y})")
+            self.logger.debug(f"Manual capture triggered at ({x}, {y})")
             
         except Exception as e:
-            print(f"Error triggering manual capture: {e}")
+            self.logger.error(f"Error triggering manual capture: {e}")
     
     def get_status(self) -> Dict[str, Any]:
         """Get current monitoring status"""
@@ -559,7 +561,8 @@ def serialize_event(event) -> str:
         
         return json.dumps(event_dict)
     except Exception as e:
-        print(f"Error serializing event: {e}")
+        # Module-level function - use basic logger
+        get_logger('core.events').error(f"Error serializing event: {e}")
         return "{}"
 
 def deserialize_event(event_json: str) -> Optional[Dict]:
@@ -567,5 +570,6 @@ def deserialize_event(event_json: str) -> Optional[Dict]:
     try:
         return json.loads(event_json)
     except Exception as e:
-        print(f"Error deserializing event: {e}")
+        # Module-level function - use basic logger
+        get_logger('core.events').error(f"Error deserializing event: {e}")
         return None

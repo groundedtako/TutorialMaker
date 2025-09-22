@@ -13,7 +13,7 @@ from .event_queue import EventQueue
 from .event_processor import EventProcessor
 from .storage import TutorialStorage
 from .session_logger import SessionLogger
-
+from .logger import get_logger
 
 class SessionState(Enum):
     """Recording session states"""
@@ -51,7 +51,7 @@ class RecordingSession:
         self.total_pause_duration = 0.0
         if self.logger:
             self.logger.log_session_state("recording_started", f"Started recording '{self.title}'")
-        print(f"Recording started for: {self.title}")
+        # Note: RecordingSession doesn't have logger access, using session logger instead
     
     def pause(self):
         """Pause recording"""
@@ -60,7 +60,7 @@ class RecordingSession:
             self.pause_start_time = time.time()
             if self.logger:
                 self.logger.log_session_state("recording_paused", "Recording paused by user")
-            print("Recording paused")
+            # Note: Using session logger instead of print
     
     def resume(self):
         """Resume recording"""
@@ -72,7 +72,7 @@ class RecordingSession:
                 self.pause_start_time = None
                 if self.logger:
                     self.logger.log_session_state("recording_resumed", f"Resumed after {pause_duration:.1f}s pause")
-            print("Recording resumed")
+            # Note: Using session logger instead of print
     
     def stop(self):
         """Stop recording"""
@@ -81,7 +81,7 @@ class RecordingSession:
             self.total_pause_duration += time.time() - self.pause_start_time
         if self.logger:
             self.logger.log_session_state("recording_stopped", f"Recording stopped. {self.step_counter} steps captured")
-        print(f"Recording stopped. Total steps: {self.step_counter}")
+        # Note: Using session logger instead of print
     
     def is_recording(self) -> bool:
         """Check if currently recording (not paused or stopped)"""
@@ -140,6 +140,7 @@ class SessionManager:
         self.event_queue = event_queue
         self.event_processor = event_processor
         self.debug_mode = debug_mode
+        self.logger = get_logger('core.session_manager')
         
         # Current session
         self.current_session: Optional[RecordingSession] = None
@@ -159,7 +160,7 @@ class SessionManager:
         # Stop any existing session
         if self.current_session:
             if self.current_session.is_recording():
-                print("Stopping current session to start new one...")
+                self.logger.info("Stopping current session to start new one...")
                 self.stop_recording()
         
         # Create session logger
@@ -168,14 +169,14 @@ class SessionManager:
             session_logger = SessionLogger(tutorial_id, project_path, self.debug_mode)
         else:
             session_logger = None
-            print("Warning: Could not create session logger - project path not found")
+            self.logger.warning("Could not create session logger - project path not found")
         
         # Create new session with logger
         self.current_session = RecordingSession(tutorial_id, title, selected_monitor, session_logger)
         
         if self.debug_mode:
             monitor_text = f" (Monitor {selected_monitor})" if selected_monitor else " (Auto-detect monitor)"
-            print(f"DEBUG: Created new session for tutorial '{title}' (ID: {tutorial_id}){monitor_text}")
+            self.logger.debug(f"Created new session for tutorial '{title}' (ID: {tutorial_id}){monitor_text}")
         
         return self.current_session
     
@@ -191,12 +192,12 @@ class SessionManager:
             True if recording started successfully
         """
         if not self.current_session:
-            print("No tutorial session. Create a new tutorial first.")
+            self.logger.error("No tutorial session. Create a new tutorial first.")
             return False
         
         # Start event monitoring
         if not self.event_monitor.start_monitoring():
-            print("Failed to start event monitoring. Limited functionality available.")
+            self.logger.warning("Failed to start event monitoring. Limited functionality available.")
             # Continue anyway - user can still do manual capture
         
         # Start session
@@ -209,7 +210,7 @@ class SessionManager:
         self.storage.update_tutorial_status(self.current_session.tutorial_id, "recording")
         
         if self.debug_mode:
-            print(f"DEBUG: Started recording for session '{self.current_session.title}'")
+            self.logger.debug(f"Started recording for session '{self.current_session.title}'")
         
         return True
     
@@ -220,7 +221,7 @@ class SessionManager:
             self.storage.update_tutorial_status(self.current_session.tutorial_id, "paused")
             
             if self.debug_mode:
-                print(f"DEBUG: Paused recording for session '{self.current_session.title}'")
+                self.logger.debug(f"Paused recording for session '{self.current_session.title}'")
     
     def resume_recording(self):
         """Resume the current recording"""
@@ -229,7 +230,7 @@ class SessionManager:
             self.storage.update_tutorial_status(self.current_session.tutorial_id, "recording")
             
             if self.debug_mode:
-                print(f"DEBUG: Resumed recording for session '{self.current_session.title}'")
+                self.logger.debug(f"Resumed recording for session '{self.current_session.title}'")
     
     def stop_recording(self) -> Optional[str]:
         """
@@ -240,7 +241,7 @@ class SessionManager:
         """
         if not self.current_session:
             if self.debug_mode:
-                print("DEBUG: No active session to stop")
+                self.logger.debug("No active session to stop")
             return None
         
         tutorial_id = self.current_session.tutorial_id
@@ -254,7 +255,7 @@ class SessionManager:
         self.current_session.status = SessionState.STOPPED
         
         # Process all queued events into tutorial steps
-        print(f"Processing events for tutorial: {tutorial_title}")
+        self.logger.info(f"Processing events for tutorial: {tutorial_title}")
         self._process_queued_events()
         
         # Finalize session data
@@ -284,26 +285,26 @@ class SessionManager:
                 self.current_session.logger.log_session_state("session_completed", 
                     f"Session completed with {final_step_count} steps in {final_duration:.1f}s")
                 self.current_session.logger.save_session_log()
-                print(f"Session log saved: {summary['log_file']}")
+                self.logger.info(f"Session log saved: {summary['log_file']}")
             except Exception as e:
-                print(f"Warning: Could not save session log: {e}")
+                self.logger.warning(f"Could not save session log: {e}")
         
-        print(f"Tutorial completed: {tutorial_title}")
-        print(f"Duration: {final_duration:.1f} seconds")
-        print(f"Steps captured: {final_step_count}")
+        self.logger.info(f"Tutorial completed: {tutorial_title}")
+        self.logger.info(f"Duration: {final_duration:.1f} seconds")
+        self.logger.info(f"Steps captured: {final_step_count}")
         
         # Get project path for user reference
         project_path = self.storage.get_project_path(tutorial_id)
         if project_path:
-            print(f"Tutorial saved to: {project_path}")
-            print(f"Edit in browser: http://localhost:5001/tutorial/{tutorial_id}")
-            print("Use 'export' command or web interface to export to HTML/Word/PDF")
+            self.logger.info(f"Tutorial saved to: {project_path}")
+            self.logger.info(f"Edit in browser: http://localhost:5001/tutorial/{tutorial_id}")
+            self.logger.info("Use 'export' command or web interface to export to HTML/Word/PDF")
         
         # Clear current session
         self.current_session = None
         
         if self.debug_mode:
-            print(f"DEBUG: Completed session for tutorial '{tutorial_title}' ({tutorial_id})")
+            self.logger.debug(f"Completed session for tutorial '{tutorial_title}' ({tutorial_id})")
         
         return tutorial_id
     
@@ -316,7 +317,7 @@ class SessionManager:
         events = self.event_queue.get_events_for_processing()
         
         if not events:
-            print("No events to process")
+            self.logger.info("No events to process")
             self.event_queue.complete_processing()
             return
         
@@ -332,7 +333,7 @@ class SessionManager:
         
         # Complete processing
         self.event_queue.complete_processing()
-        print(f"Tutorial processing complete. Created {steps_created} tutorial steps")
+        self.logger.info(f"Tutorial processing complete. Created {steps_created} tutorial steps")
     
     def get_session_status(self) -> Dict[str, Any]:
         """Get status of current recording session"""
@@ -365,7 +366,7 @@ class SessionManager:
         self.current_session.step_counter += 1
         
         if self.debug_mode:
-            print(f"DEBUG: Incremented step counter to {self.current_session.step_counter}")
+            self.logger.debug(f"Incremented step counter to {self.current_session.step_counter}")
         
         return self.current_session.step_counter
     

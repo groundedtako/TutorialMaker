@@ -14,19 +14,24 @@ from pathlib import Path
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
+from src.core.logger import get_logger, set_debug_mode, set_log_level
+
+# Module-level logger
+logger = get_logger('main')
+
 def signal_handler(sig, frame):
     """Handle graceful shutdown on Ctrl+C"""
-    print("\nShutting down gracefully...")
+    logger.info("\nShutting down gracefully...")
     sys.exit(0)
 
 def start_web_interface(args):
     """Start the web interface"""
-    print("Starting web interface...")
-    print(f"Server will be available at http://localhost:{args.port}")
+    logger.info("Starting web interface...")
+    logger.info(f"Server will be available at http://localhost:{args.port}")
     if not args.no_browser:
-        print("Browser will open automatically")
+        logger.info("Browser will open automatically")
     print()
-    print("Press Ctrl+C to stop the server")
+    logger.info("Press Ctrl+C to stop the server")
     print()
     
     # Import and run the server
@@ -57,6 +62,8 @@ def main():
     parser = argparse.ArgumentParser(description="TutorialMaker - Privacy-focused Tutorial Maker")
     parser.add_argument("--debug", action="store_true", 
                       help="Enable debug mode with precise click location markers")
+    parser.add_argument("--log-level", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], 
+                      default='INFO', help="Set logging level (default: INFO)")
     parser.add_argument("--cli", action="store_true",
                       help="Use command-line interface")
     parser.add_argument("--web", action="store_true",
@@ -69,11 +76,21 @@ def main():
                       help="Don't open browser automatically")
     args = parser.parse_args()
     
-    print("TutorialMaker - Privacy-focused Tutorial Maker")
-    print("===========================================")
+    # Configure logging level based on arguments
     if args.debug:
-        print("DEBUG MODE ENABLED - Click locations will be marked with red dots")
-    print()
+        # Debug mode overrides log-level to DEBUG
+        set_debug_mode(True)
+        actual_level = 'DEBUG'
+    else:
+        # Use specified log level
+        set_log_level(args.log_level)
+        actual_level = args.log_level
+    
+    logger.info("TutorialMaker - Privacy-focused Tutorial Maker")
+    logger.info("===========================================")
+    logger.info(f"Logging level: {actual_level}")
+    if args.debug:
+        logger.info("DEBUG MODE ENABLED - Click locations will be marked with red dots")
     
     # Register signal handler for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
@@ -81,8 +98,8 @@ def main():
     try:
         if args.cli:
             # Use CLI interface
-            print("Starting CLI interface...")
-            print("Type 'help' for available commands")
+            logger.info("Starting CLI interface...")
+            logger.info("Type 'help' for available commands")
             print()
             
             from src.core.app import TutorialMakerApp
@@ -93,45 +110,44 @@ def main():
             start_web_interface(args)
         else:
             # Default: Try desktop GUI first, fallback to web
-            print("Attempting to start desktop GUI interface...")
+            logger.info("Attempting to start desktop GUI interface...")
             try:
-                print("DEBUG: Importing desktop GUI...")
+                logger.debug("Importing desktop GUI...")
                 from src.gui.desktop_app import TutorialMakerDesktopApp
-                print("DEBUG: Desktop GUI imported successfully")
+                logger.debug("Desktop GUI imported successfully")
                 
-                print("Starting desktop GUI interface...")
+                logger.info("Starting desktop GUI interface...")
                 if args.debug:
-                    print("DEBUG MODE ENABLED - Click locations will be marked with red dots")
+                    logger.info("DEBUG MODE ENABLED - Click locations will be marked with red dots")
                 print()
                 
                 desktop_app = TutorialMakerDesktopApp(debug_mode=args.debug)
                 if args.debug:
-                    print("DEBUG: Desktop app created, initializing...")
+                    logger.debug("Desktop app created, initializing...")
                 desktop_app.initialize()
                 if args.debug:
-                    print("DEBUG: Desktop app initialized, running...")
+                    logger.debug("Desktop app initialized, running...")
                 desktop_app.run()
                 
-            except ImportError as e:
-                print(f"Desktop GUI not available: {e}")
-                print("Falling back to web interface...")
+                logger.warning(f"Desktop GUI not available: {e}")
+                logger.warning("Falling back to web interface...")
                 print()
                 start_web_interface(args)
             except Exception as e:
-                print(f"Desktop GUI failed to start: {e}")
-                print("Falling back to web interface...")
+                logger.error(f"Desktop GUI failed to start: {e}")
+                logger.warning("Falling back to web interface...")
                 print()
                 start_web_interface(args)
                 
     except ImportError as e:
-        print(f"Error importing core modules: {e}")
-        print("Please ensure all dependencies are installed: pip install -r requirements.txt")
+        logger.error(f"Error importing core modules: {e}")
+        logger.error("Please ensure all dependencies are installed: pip install -r requirements.txt")
         sys.exit(1)
     except KeyboardInterrupt:
-        print("\nShutting down gracefully...")
+        logger.info("Shutting down gracefully...")
         sys.exit(0)
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logger.error(f"Unexpected error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

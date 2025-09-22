@@ -1,13 +1,19 @@
 """
-Route helper functions to break up large route handlers
+Route helpers
+Helper functions for web routes
+Handles tutorial loading, validation, and rendering
 """
 
-from flask import render_template
-from typing import Optional, List, Tuple, Any
 import traceback
+from typing import Tuple, List, Dict, Any, Optional
+from flask import render_template, request, jsonify
 
-from ..core.storage import TutorialMetadata, TutorialStep
+from ..core.storage import TutorialStorage, TutorialMetadata, TutorialStep
 from ..utils.api_utils import APIException
+from ..core.logger import get_logger
+
+# Module-level logger
+logger = get_logger('web.route_helpers')
 
 
 def load_and_validate_tutorial(storage, tutorial_id: str) -> Tuple[Optional[TutorialMetadata], List[TutorialStep]]:
@@ -38,14 +44,14 @@ def load_and_validate_tutorial(storage, tutorial_id: str) -> Tuple[Optional[Tuto
         try:
             # Check if step has required attributes
             if not hasattr(step, 'step_id'):
-                print(f"Warning: Step {i} missing step_id")
+                logger.warning(f"Step {i} missing step_id")
                 continue
             if not hasattr(step, 'description'):
-                print(f"Warning: Step {i} missing description")
+                logger.warning(f"Step {i} missing description")
                 continue
             validated_steps.append(step)
         except Exception as e:
-            print(f"Error validating step {i}: {e}")
+            logger.error(f"Error validating step {i}: {e}")
             # Skip invalid steps but continue processing
             continue
     
@@ -100,8 +106,8 @@ def handle_tutorial_error(tutorial_id: str, error: Exception) -> Tuple[str, int]
     Returns:
         Tuple of (error page HTML, status code)
     """
-    print(f"Error loading tutorial {tutorial_id}: {error}")
-    print(traceback.format_exc())
+    logger.error(f"Error loading tutorial {tutorial_id}: {error}")
+    logger.debug(traceback.format_exc())
     
     if isinstance(error, APIException):
         return render_template(

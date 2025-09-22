@@ -10,6 +10,8 @@ import signal
 import argparse
 from pathlib import Path
 
+from main import logger
+
 # Add src to path
 sys.path.append(str(Path(__file__).parent / "src"))
 
@@ -70,15 +72,18 @@ def check_dependencies():
         from src.core.app import TutorialMakerApp
         recording_available = True
     except ImportError as e:
-        print(f"Warning: Recording functionality not available: {e}")
+        logger.warning("Recording functionality not available: {e}")
         recording_available = False
         
     if missing_deps:
-        print("❌ Missing required dependencies:")
+        # Build complete error message
+        error_msg = "❌ Missing required dependencies:\n"
         for dep in missing_deps:
-            print(f"   {dep}")
-        print("\n💡 Install dependencies:")
-        print("   pip install -r requirements.txt")
+            error_msg += f"   {dep}\n"
+        error_msg += "\n💡 Install dependencies:\n"
+        error_msg += "   pip install -r requirements.txt"
+        
+        logger.error(error_msg)
         sys.exit(1)
         
     return recording_available
@@ -86,7 +91,7 @@ def check_dependencies():
 def setup_signal_handlers(server_instance):
     """Set up graceful shutdown signal handlers"""
     def signal_handler(sig, frame):
-        print(f"\n🛑 Received signal {sig}, shutting down gracefully...")
+        logger.info(f"\n🛑 Received signal {sig}, shutting down gracefully...")
         if hasattr(server_instance, 'shutdown'):
             server_instance.shutdown()
         sys.exit(0)
@@ -111,14 +116,14 @@ class UnifiedServer:
                 os.environ['TUTORIAL_MAKER_MOCK_MODE'] = '1'
             
             if self.recording_available:
-                print("🚀 Starting with full recording support")
+                logger.info("🚀 Starting with full recording support")
                 from src.core.app import TutorialMakerApp
                 self.app = TutorialMakerApp(debug_mode=self.args.debug)
                 self.app.web_mode = True
                 self.server = self.app.web_server
                 self.server.port = self.args.port
             else:
-                print("📖 Starting in view-only mode")
+                logger.info("📖 Starting in view-only mode")
                 from src.core.storage import TutorialStorage
                 from src.web.server import TutorialWebServer
                 storage = TutorialStorage()
@@ -127,25 +132,27 @@ class UnifiedServer:
             return True
             
         except Exception as e:
-            print(f"❌ Failed to create server: {e}")
+            logger.error(f"❌ Failed to create server: {e}")
             return False
     
     
     def run(self):
         """Run the server"""
-        print("=" * 60)
-        print("🎯 TutorialMaker Unified Web Server")
-        print("=" * 60)
+        # Build server startup info message
+        startup_msg = "=" * 60 + "\n"
+        startup_msg += "🎯 TutorialMaker Unified Web Server\n"
+        startup_msg += "=" * 60 + "\n\n"
         
         # Show configuration
         recording = "Full" if self.recording_available else "View-only"
-        print(f"🎬 Recording: {recording}")
-        print(f"🌐 Port: {self.args.port}")
-        print("")
+        startup_msg += f"🎬 Recording: {recording}\n"
+        startup_msg += f"🌐 Port: {self.args.port}"
+        
+        logger.info(startup_msg)
         
         # Create server
         if not self.create_server():
-            print("❌ Failed to create server")
+            logger.error("❌ Failed to create server")
             return 1
         
         # Set up signal handlers
@@ -156,15 +163,16 @@ class UnifiedServer:
             open_browser = not self.args.no_browser
             url = self.server.start(open_browser=open_browser)
             
-            print(f"✅ Server running at: {url}")
-            print("")
-            print("🏭 Production Features:")
-            print("  • Optimized performance")
-            print("  • Stable operation")  
-            print("  • Memory efficient")
-            print("")
-            print("⌨️  Press Ctrl+C to stop server")
-            print("=" * 60)
+            # Build server running info message
+            running_msg = f"✅ Server running at: {url}\n\n"
+            running_msg += "🏭 Production Features:\n"
+            running_msg += "  • Optimized performance\n"
+            running_msg += "  • Stable operation\n"
+            running_msg += "  • Memory efficient\n\n"
+            running_msg += "⌨️  Press Ctrl+C to stop server\n"
+            running_msg += "=" * 60
+            
+            logger.info(running_msg)
             
             # Keep server running
             try:
@@ -175,7 +183,7 @@ class UnifiedServer:
                 pass
                 
         except Exception as e:
-            print(f"❌ Failed to start server: {e}")
+            logger.error(f"❌ Failed to start server: {e}")
             return 1
         
         finally:
@@ -185,18 +193,18 @@ class UnifiedServer:
     
     def shutdown(self):
         """Clean shutdown"""
-        print("\n🧹 Shutting down server...")
+        logger.info("\n🧹 Shutting down server...")
         
         if self.server and hasattr(self.server, 'stop'):
             self.server.stop()
-            print("✅ Web server stopped")
+            logger.info("✅ Web server stopped")
         
         if self.app and hasattr(self.app, 'shutdown'):
             self.app.shutdown()
-            print("✅ App shutdown complete")
+            logger.info("✅ App shutdown complete")
         
-        print("👋 Server stopped")
-
+        logger.info("👋 Server stopped")
+fo
 def main():
     """Main entry point"""
     args = parse_arguments()

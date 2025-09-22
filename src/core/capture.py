@@ -7,11 +7,13 @@ import time
 import platform
 from typing import Optional, Tuple, Dict, Any, Union
 from pathlib import Path
+from .logger import get_logger
 try:
     import mss
     MSS_AVAILABLE = True
 except (ImportError, ValueError, Exception):
     MSS_AVAILABLE = False
+    # Note: Can't use logger here as it's module-level import
     print("Warning: mss not available. Screenshot capture disabled.")
 
 try:
@@ -31,6 +33,7 @@ except (ImportError, ValueError, Exception):
         @staticmethod
         def Draw(*args, **kwargs):
             return None
+    # Note: Can't use logger here as it's module-level import
     print("Warning: PIL not available in capture module.")
 
 try:
@@ -38,6 +41,7 @@ try:
     NUMPY_AVAILABLE = True
 except (ImportError, ValueError, Exception):
     NUMPY_AVAILABLE = False
+    # Note: Can't use logger here as it's module-level import
     print("Warning: numpy not available in capture module.")
 
 class ScreenCapture:
@@ -51,6 +55,7 @@ class ScreenCapture:
         self.debug_mode = debug_mode
         self._thread_local_sct = None
         self._last_monitor_info = None
+        self.logger = get_logger('core.capture')
         
     def _get_sct_instance(self):
         """Get thread-local MSS instance to avoid threading issues on Windows"""
@@ -61,7 +66,7 @@ class ScreenCapture:
         try:
             return mss.mss()
         except Exception as e:
-            print(f"Error creating MSS instance: {e}")
+            self.logger.error(f"Error creating MSS instance: {e}")
             return None
     
     def get_monitor_from_point(self, x: int, y: int) -> int:
@@ -72,8 +77,8 @@ class ScreenCapture:
         
         try:
             if self.debug_mode:
-                print(f"DEBUG: Detecting monitor for point ({x}, {y})")
-                print(f"DEBUG: Available monitors: {len(sct.monitors) - 1}")
+                self.logger.debug(f"Detecting monitor for point ({x}, {y})")
+                self.logger.debug(f"Available monitors: {len(sct.monitors) - 1}")
             
             # Check each monitor to see which contains the point
             for i, monitor in enumerate(sct.monitors[1:], 1):  # Skip index 0 (all monitors)
@@ -81,19 +86,19 @@ class ScreenCapture:
                 right, bottom = left + monitor['width'], top + monitor['height']
                 
                 if self.debug_mode:
-                    print(f"DEBUG: Monitor {i}: ({left}, {top}) to ({right}, {bottom}) [{monitor['width']}x{monitor['height']}]")
+                    self.logger.debug(f"Monitor {i}: ({left}, {top}) to ({right}, {bottom}) [{monitor['width']}x{monitor['height']}]")
                 
                 if (left <= x < right and top <= y < bottom):
                     if self.debug_mode:
-                        print(f"DEBUG: Point ({x}, {y}) found in Monitor {i}")
+                        self.logger.debug(f"Point ({x}, {y}) found in Monitor {i}")
                     return i
             
             # If point is not found in any monitor, return primary monitor
             if self.debug_mode:
-                print(f"DEBUG: Point ({x}, {y}) not found in any monitor, defaulting to Monitor 1")
+                self.logger.debug(f"Point ({x}, {y}) not found in any monitor, defaulting to Monitor 1")
             return 1
         except Exception as e:
-            print(f"Error detecting monitor: {e}")
+            self.logger.error(f"Error detecting monitor: {e}")
             return 1
         finally:
             if sct and hasattr(sct, 'close'):
@@ -111,12 +116,12 @@ class ScreenCapture:
             PIL Image of the screenshot, or None if capture not available
         """
         if not MSS_AVAILABLE:
-            print("Screenshot capture not available")
+            self.logger.warning("Screenshot capture not available")
             return None
         
         sct = self._get_sct_instance()
         if not sct:
-            print("Failed to create MSS instance")
+            self.logger.error("Failed to create MSS instance")
             return None
             
         try:
@@ -124,7 +129,7 @@ class ScreenCapture:
             if click_point is not None:
                 monitor_id = self.get_monitor_from_point(click_point[0], click_point[1])
                 if self.debug_mode:
-                    print(f"DEBUG: Auto-detected monitor {monitor_id} for click at {click_point}")
+                    self.logger.debug(f"Auto-detected monitor {monitor_id} for click at {click_point}")
             
             # Get monitor information
             if monitor_id == 0:
@@ -135,7 +140,7 @@ class ScreenCapture:
                 monitor = sct.monitors[min(monitor_id, len(sct.monitors) - 1)]
             
             if self.debug_mode:
-                print(f"DEBUG: Capturing monitor {monitor_id}: {monitor['width']}x{monitor['height']} at ({monitor['left']}, {monitor['top']})")
+                self.logger.debug(f"Capturing monitor {monitor_id}: {monitor['width']}x{monitor['height']} at ({monitor['left']}, {monitor['top']})")
             
             # Capture screenshot
             screenshot = sct.grab(monitor)
@@ -157,7 +162,7 @@ class ScreenCapture:
             return img
             
         except Exception as e:
-            print(f"Error capturing screenshot: {e}")
+            self.logger.error(f"Error capturing screenshot: {e}")
             return None
         finally:
             # Always close the MSS instance to prevent threading issues
@@ -197,7 +202,7 @@ class ScreenCapture:
             return img
             
         except Exception as e:
-            print(f"Error capturing region: {e}")
+            self.logger.error(f"Error capturing region: {e}")
             return None
         finally:
             if sct and hasattr(sct, 'close'):
@@ -274,7 +279,7 @@ class ScreenCapture:
             return screen_info
             
         except Exception as e:
-            print(f"Error getting screen info: {e}")
+            self.logger.error(f"Error getting screen info: {e}")
             return {'width': 1920, 'height': 1080, 'monitor_count': 1, 'system': self.system}
         finally:
             if sct and hasattr(sct, 'close'):
@@ -300,7 +305,7 @@ class ScreenCapture:
             return True
             
         except Exception as e:
-            print(f"Error saving screenshot: {e}")
+            self.logger.error(f"Error saving screenshot: {e}")
             return False
     
     def get_last_monitor_info(self) -> Optional[dict]:
@@ -319,7 +324,7 @@ class ScreenCapture:
         """
         if not self._last_monitor_info:
             if self.debug_mode:
-                print(f"DEBUG: No monitor info available, returning global coordinates")
+                self.logger.debug("No monitor info available, returning global coordinates")
             return global_x, global_y
         
         monitor = self._last_monitor_info
@@ -327,16 +332,16 @@ class ScreenCapture:
         relative_y = global_y - monitor['top']
         
         if self.debug_mode:
-            print(f"DEBUG: Adjusting coordinates ({global_x}, {global_y}) for monitor at ({monitor['left']}, {monitor['top']})")
-            print(f"DEBUG: Monitor size: {monitor['width']}x{monitor['height']}")
-            print(f"DEBUG: Raw relative: ({relative_x}, {relative_y})")
+            self.logger.debug(f"Adjusting coordinates ({global_x}, {global_y}) for monitor at ({monitor['left']}, {monitor['top']})")
+            self.logger.debug(f"Monitor size: {monitor['width']}x{monitor['height']}")
+            self.logger.debug(f"Raw relative: ({relative_x}, {relative_y})")
         
         # Ensure coordinates are within monitor bounds
         clamped_x = max(0, min(relative_x, monitor['width'] - 1))
         clamped_y = max(0, min(relative_y, monitor['height'] - 1))
         
         if self.debug_mode and (clamped_x != relative_x or clamped_y != relative_y):
-            print(f"DEBUG: Coordinates clamped from ({relative_x}, {relative_y}) to ({clamped_x}, {clamped_y})")
+            self.logger.debug(f"Coordinates clamped from ({relative_x}, {relative_y}) to ({clamped_x}, {clamped_y})")
         
         return clamped_x, clamped_y
     
@@ -387,7 +392,7 @@ class ScreenCapture:
             return region
             
         except Exception as e:
-            print(f"Error extracting region: {e}")
+            self.logger.error(f"Error extracting region: {e}")
             # Return a default region around the point
             return image.crop((max(0, x-50), max(0, y-25), 
                              x+50, y+25))
@@ -422,7 +427,7 @@ class ScreenCapture:
                 pixel_x = x
                 pixel_y = y
             else:
-                print("Warning: No coordinates provided to add_debug_click_marker")
+                self.logger.warning("No coordinates provided to add_debug_click_marker")
                 return image
             
             # Create a copy to avoid modifying original
@@ -446,16 +451,16 @@ class ScreenCapture:
             return marked_image
             
         except Exception as e:
-            print(f"Error adding debug marker: {e}")
+            self.logger.error(f"Error adding debug marker: {e}")
             return image
     
     def set_debug_mode(self, enabled: bool):
         """Enable or disable debug mode"""
         self.debug_mode = enabled
         if enabled:
-            print("Debug mode enabled - precise click locations will be marked with red dots")
+            self.logger.info("Debug mode enabled - precise click locations will be marked with red dots")
         else:
-            print("Debug mode disabled")
+            self.logger.info("Debug mode disabled")
     
     def close(self):
         """Clean up resources"""

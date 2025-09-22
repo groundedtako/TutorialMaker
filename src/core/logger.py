@@ -7,6 +7,8 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional
+import os
+from datetime import datetime
 
 
 class TutorialMakerLogger:
@@ -34,19 +36,58 @@ class TutorialMakerLogger:
         # Clear any existing handlers
         self.logger.handlers.clear()
 
+        # Check environment variable for log level
+        env_level = os.getenv('TUTORIALMAKER_LOG_LEVEL', 'INFO').upper()
+        level_map = {
+            'DEBUG': logging.DEBUG,
+            'INFO': logging.INFO,
+            'WARNING': logging.WARNING,
+            'ERROR': logging.ERROR,
+            'CRITICAL': logging.CRITICAL
+        }
+        default_level = level_map.get(env_level, logging.INFO)
+
         # Console handler with formatting
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.INFO)  # Default to INFO level
+        console_handler.setLevel(default_level)
 
-        # Create formatter
-        formatter = logging.Formatter(
-            fmt='%(levelname)s: %(message)s',
+        # Create detailed formatter for console
+        console_formatter = logging.Formatter(
+            fmt='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
             datefmt='%H:%M:%S'
         )
-        console_handler.setFormatter(formatter)
+        console_handler.setFormatter(console_formatter)
 
-        # Add handler to logger
+        # Add console handler to logger
         self.logger.addHandler(console_handler)
+
+        # File handler for persistent logging
+        try:
+            # Create logs directory if it doesn't exist
+            log_dir = Path('logs')
+            log_dir.mkdir(exist_ok=True)
+            
+            # Create log file with timestamp
+            log_file = log_dir / f"tutorialmaker_{datetime.now().strftime('%Y%m%d')}.log"
+            
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            file_handler.setLevel(logging.DEBUG)  # Log everything to file
+            
+            # More detailed formatter for file
+            file_formatter = logging.Formatter(
+                fmt='%(asctime)s [%(name)s] %(levelname)s: %(message)s (%(filename)s:%(lineno)d)',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            file_handler.setFormatter(file_formatter)
+            
+            self.logger.addHandler(file_handler)
+            self.file_handler = file_handler
+            
+        except Exception as e:
+            # If file logging fails, continue with console only
+            console_handler.setLevel(logging.DEBUG)
+            self.logger.warning(f"Could not set up file logging: {e}")
+            self.file_handler = None
 
         # Store handler reference for level changes
         self.console_handler = console_handler
@@ -101,6 +142,34 @@ def set_debug_mode(enabled: bool):
 
     _logger_instance.set_debug_mode(enabled)
 
+def set_log_level(level: str):
+    """
+    Set logging level globally
+    
+    Args:
+        level: Logging level ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+    """
+    global _logger_instance
+    if _logger_instance is None:
+        _logger_instance = TutorialMakerLogger()
+    
+    import logging
+    level_map = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING, 
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL
+    }
+    
+    if level.upper() in level_map:
+        _logger_instance.console_handler.setLevel(level_map[level.upper()])
+        if level.upper() == 'DEBUG':
+            _logger_instance.set_debug_mode(True)
+        _logger_instance.logger.info(f"Logging level set to {level.upper()}")
+    else:
+        _logger_instance.logger.warning(f"Invalid log level: {level}. Using INFO.")
+
 def info(message: str):
     """Log an info message"""
     get_logger().info(message)
@@ -116,3 +185,11 @@ def warning(message: str):
 def error(message: str):
     """Log an error message"""
     get_logger().error(message)
+
+def exception(message: str):
+    """Log an exception with traceback"""
+    get_logger().exception(message)
+
+def critical(message: str):
+    """Log a critical message"""
+    get_logger().critical(message)

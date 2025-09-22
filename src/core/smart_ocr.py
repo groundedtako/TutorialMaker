@@ -7,6 +7,7 @@ import time
 import math
 from typing import Optional, Tuple, List, Dict, Any
 from pathlib import Path
+from .logger import get_logger
 
 try:
     from PIL import Image, ImageDraw, ImageFilter, ImageEnhance
@@ -58,6 +59,7 @@ class SmartOCRProcessor:
         self.ocr_engine = OCREngine()
         self.min_confidence = 0.3  # Minimum confidence for valid text (same as OCRResult.is_valid)
         self.min_word_length = 1   # Minimum word length (allow single meaningful characters)
+        self.logger = get_logger('core.smart_ocr')
         
         # Element detection settings
         self.button_min_size = (40, 25)    # Increased minimum button size
@@ -174,7 +176,7 @@ class SmartOCRProcessor:
                     regions.append(SmartRegion(abs_x, abs_y, w, h, element_type, confidence))
             
         except Exception as e:
-            print(f"Warning: Element detection failed: {e}")
+            self.logger.warning(f"Element detection failed: {e}")
         
         return regions
     
@@ -487,7 +489,7 @@ class SmartOCRProcessor:
                 return "dark interface element"
             
         except Exception as e:
-            print(f"Context analysis failed: {e}")
+            self.logger.warning(f"Context analysis failed: {e}")
         
         return None
     
@@ -588,7 +590,7 @@ class SmartOCRProcessor:
                 return OCRResult("", 0.0, "easyocr_sharpened")
                 
         except Exception as e:
-            print(f"EasyOCR sharpened failed: {e}")
+            self.logger.warning(f"EasyOCR sharpened failed: {e}")
             return None
     
     def _try_tesseract_threshold(self, region_image: Image.Image) -> Optional[OCRResult]:
@@ -641,7 +643,7 @@ class SmartOCRProcessor:
             return OCRResult(text, confidence, "tesseract_threshold")
             
         except Exception as e:
-            print(f"Tesseract threshold failed: {e}")
+            self.logger.warning(f"Tesseract threshold failed: {e}")
             return None
     
     def _try_fallback_strategies(self, region_image: Image.Image) -> List[OCRResult]:
@@ -701,7 +703,7 @@ class SmartOCRProcessor:
                 results.append(original_result)
                 
         except Exception as e:
-            print(f"Fallback strategies failed: {e}")
+            self.logger.warning(f"Fallback strategies failed: {e}")
         
         return results
     
@@ -762,7 +764,7 @@ class SmartOCRProcessor:
             )
             
         except Exception as e:
-            print(f"OCR cleaning failed: {e}")
+            self.logger.warning(f"OCR cleaning failed: {e}")
             return ocr_result
     
     def _isolate_text_areas(self, region_image: Image.Image) -> List[Image.Image]:
@@ -815,7 +817,7 @@ class SmartOCRProcessor:
             return self._deduplicate_text_crops(filtered_crops)
             
         except Exception as e:
-            print(f"Warning: Text isolation failed: {e}")
+            self.logger.warning(f"Text isolation failed: {e}")
             return text_crops
     
     def _is_text_like_band(self, band: np.ndarray) -> bool:
@@ -1025,7 +1027,7 @@ class SmartOCRProcessor:
                 )
                 
         except Exception as e:
-            print(f"Warning: Intelligent boundary detection failed: {e}")
+            self.logger.warning(f"Intelligent boundary detection failed: {e}")
             
         return None
     
@@ -1155,20 +1157,20 @@ class SmartOCRProcessor:
             debug_image.save(timestamped_filename)
             
             # Print debug info
-            print(f"DEBUG: Region saved to {timestamped_filename}")
-            print(f"DEBUG: Region bounds: ({region_bounds.x}, {region_bounds.y}, {region_bounds.x + region_bounds.width}, {region_bounds.y + region_bounds.height})")
-            print(f"DEBUG: Region size: {region_bounds.width}x{region_bounds.height}")
-            print(f"DEBUG: Click coordinates: ({click_x}, {click_y})")
-            print(f"DEBUG: Relative click in region: ({relative_x}, {relative_y})")
+            self.logger.debug(f"Region saved to {timestamped_filename}")
+            self.logger.debug(f"Region bounds: ({region_bounds.x}, {region_bounds.y}, {region_bounds.x + region_bounds.width}, {region_bounds.y + region_bounds.height})")
+            self.logger.debug(f"Region size: {region_bounds.width}x{region_bounds.height}")
+            self.logger.debug(f"Click coordinates: ({click_x}, {click_y})")
+            self.logger.debug(f"Relative click in region: ({relative_x}, {relative_y})")
             
             # Check if click is within region bounds
             if (0 <= relative_x < region_bounds.width and 0 <= relative_y < region_bounds.height):
-                print(f"INFO: Click is within region bounds - red dot should be visible")
+                self.logger.info("Click is within region bounds - red dot should be visible")
             else:
-                print(f"WARNING: Click is outside region bounds - no red dot will be shown")
+                self.logger.warning("Click is outside region bounds - no red dot will be shown")
                 
         except Exception as e:
-            print(f"Failed to save debug region: {e}")
+            self.logger.error(f"Failed to save debug region: {e}")
     
     def _save_debug_info(self, screenshot: Image.Image, click_x: int, click_y: int, 
                         region: Optional[SmartRegion], result: OCRResult):
@@ -1204,4 +1206,4 @@ class SmartOCRProcessor:
                 f.write(f"Valid: {result.is_valid()}\n")
             
         except Exception as e:
-            print(f"Debug save failed: {e}")
+            self.logger.error(f"Debug save failed: {e}")

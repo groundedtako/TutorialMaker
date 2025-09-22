@@ -59,11 +59,11 @@ class TutorialMakerDesktopApp:
             # Initialize global hotkeys
             self._setup_hotkeys()
             
-            print("SUCCESS: TutorialMaker Desktop initialized successfully")
+            self.logger.info("TutorialMaker Desktop initialized successfully")
             
         except Exception as e:
             error_msg = f"Failed to initialize TutorialMaker: {e}"
-            print(f"ERROR: {error_msg}")
+            self.logger.error(error_msg)
             if hasattr(tk, 'Tk'):
                 root = tk.Tk()
                 root.withdraw()
@@ -89,11 +89,11 @@ class TutorialMakerDesktopApp:
                 try:
                     self.hotkey_manager.register_hotkey(hotkey, callback)
                 except Exception as e:
-                    print(f"Warning: Failed to register hotkey {hotkey}: {e}")
+                    self.logger.warning(f"Failed to register hotkey {hotkey}: {e}")
             
         except (ImportError, Exception) as e:
-            print(f"Warning: Global hotkeys not available: {e}")
-            print("The application will work normally without global hotkeys.")
+            self.logger.warning(f"Global hotkeys not available: {e}")
+            self.logger.info("The application will work normally without global hotkeys.")
             self.hotkey_manager = None
     
     def _hotkey_toggle_recording(self):
@@ -110,7 +110,7 @@ class TutorialMakerDesktopApp:
             else:
                 self.core_app.start_recording()
         except Exception as e:
-            print(f"Hotkey error: {e}")
+            self.logger.error(f"Hotkey error: {e}")
     
     def _hotkey_pause_resume(self):
         """Hotkey callback: Pause/resume recording"""
@@ -126,7 +126,7 @@ class TutorialMakerDesktopApp:
             elif current_status == 'paused':
                 self.core_app.resume_recording()
         except Exception as e:
-            print(f"Hotkey error: {e}")
+            self.logger.error(f"Hotkey error: {e}")
     
     def _hotkey_new_tutorial(self):
         """Hotkey callback: New tutorial"""
@@ -135,7 +135,7 @@ class TutorialMakerDesktopApp:
             # Focus on tutorial name entry
             self.main_window.tutorial_name_var.set("")
         except Exception as e:
-            print(f"Hotkey error: {e}")
+            self.logger.error(f"Hotkey error: {e}")
     
     def _hotkey_toggle_floating_window(self):
         """Hotkey callback: Hide/show floating recording controls"""
@@ -151,7 +151,7 @@ class TutorialMakerDesktopApp:
                 # Show main window instead
                 self.main_window.show()
         except Exception as e:
-            print(f"Hotkey error: {e}")
+            self.logger.error(f"Hotkey error: {e}")
     
     def run(self):
         """Run the desktop application"""
@@ -161,14 +161,14 @@ class TutorialMakerDesktopApp:
             # Start system tray
             if self.tray_manager and self.tray_manager.is_available():
                 self.tray_manager.start()
-                print("SUCCESS: System tray started")
+                self.logger.info("System tray started")
             else:
-                print("WARNING: System tray not available")
+                self.logger.warning("System tray not available")
             
             # Start hotkey manager
             if self.hotkey_manager:
                 self.hotkey_manager.start()
-                print("SUCCESS: Global hotkeys registered")
+                self.logger.info("Global hotkeys registered")
             
             # Show or hide main window based on settings
             if not self.start_minimized:
@@ -176,20 +176,20 @@ class TutorialMakerDesktopApp:
             else:
                 self.main_window.hide()
                 if self.tray_manager and self.tray_manager.is_available():
-                    print("Started minimized to system tray")
+                    self.logger.info("Started minimized to system tray")
                 else:
                     # If no tray, must show window
                     self.main_window.show()
-                    print("INFO: System tray not available, showing main window")
+                    self.logger.info("System tray not available, showing main window")
             
             # Start main event loop
-            print("TutorialMaker Desktop is ready!")
+            self.logger.info("TutorialMaker Desktop is ready!")
             self.main_window.run()
             
         except KeyboardInterrupt:
-            print("\\nShutting down...")
+            self.logger.info("Shutting down...")
         except Exception as e:
-            print(f"ERROR: Application error: {e}")
+            self.logger.error(f"Application error: {e}")
         finally:
             self.cleanup()
     
@@ -224,10 +224,10 @@ class TutorialMakerDesktopApp:
             if self.core_app:
                 self.core_app.shutdown()
             
-            print("SUCCESS: Cleanup completed")
+            self.logger.info("Cleanup completed")
             
         except Exception as e:
-            print(f"Error during cleanup: {e}")
+            self.logger.error(f"Error during cleanup: {e}")
 
 
 def main():

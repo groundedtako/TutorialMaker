@@ -5,7 +5,7 @@ Centralizes multi-monitor coordinate mapping and transformations
 
 from dataclasses import dataclass
 from typing import List, Dict, Any, Tuple, Optional
-
+from .logger import get_logger
 
 @dataclass
 class MonitorInfo:
@@ -64,9 +64,10 @@ class CoordinateSystemHandler:
         self._monitors: List[MonitorInfo] = []
         self._primary_monitor: Optional[MonitorInfo] = None
         self._last_capture_monitor: Optional[MonitorInfo] = None
+        self.logger = get_logger('core.coordinate_handler')
         
         if self.debug_mode:
-            print("DEBUG: CoordinateSystemHandler initialized")
+            self.logger.debug("CoordinateSystemHandler initialized")
     
     def update_monitor_info(self, monitor_data: List[Dict[str, Any]]):
         """
@@ -100,10 +101,10 @@ class CoordinateSystemHandler:
             self._primary_monitor.is_primary = True
         
         if self.debug_mode:
-            print(f"DEBUG: Updated monitor info - {len(self._monitors)} monitors")
+            self.logger.debug(f"Updated monitor info - {len(self._monitors)} monitors")
             for monitor in self._monitors:
                 primary_str = " (PRIMARY)" if monitor.is_primary else ""
-                print(f"DEBUG:   Monitor {monitor.id}: {monitor.width}x{monitor.height} at ({monitor.left}, {monitor.top}){primary_str}")
+                self.logger.debug(f"  Monitor {monitor.id}: {monitor.width}x{monitor.height} at ({monitor.left}, {monitor.top}){primary_str}")
     
     def get_monitor_from_point(self, x: int, y: int) -> Optional[MonitorInfo]:
         """
@@ -119,12 +120,12 @@ class CoordinateSystemHandler:
         for monitor in self._monitors:
             if monitor.contains_point(x, y):
                 if self.debug_mode:
-                    print(f"DEBUG: Point ({x}, {y}) found on monitor {monitor.id}")
+                    self.logger.debug(f"Point ({x}, {y}) found on monitor {monitor.id}")
                 return monitor
         
         # Fallback to primary monitor
         if self.debug_mode:
-            print(f"DEBUG: Point ({x}, {y}) not found on any monitor, using primary")
+            self.logger.debug(f"Point ({x}, {y}) not found on any monitor, using primary")
         return self._primary_monitor
     
     def transform_coordinates(self, global_x: int, global_y: int) -> CoordinateInfo:
@@ -142,7 +143,7 @@ class CoordinateSystemHandler:
         
         if not monitor:
             if self.debug_mode:
-                print(f"DEBUG: No monitor info available for ({global_x}, {global_y})")
+                self.logger.debug(f"No monitor info available for ({global_x}, {global_y})")
             # Create fallback monitor
             monitor = MonitorInfo(
                 id=1, left=0, top=0, width=1920, height=1080, is_primary=True
@@ -162,8 +163,8 @@ class CoordinateSystemHandler:
         
         if self.debug_mode:
             if clamped_x != relative_x or clamped_y != relative_y:
-                print(f"DEBUG: Coordinates clamped from ({relative_x}, {relative_y}) to ({clamped_x}, {clamped_y})")
-            print(f"DEBUG: Global ({global_x}, {global_y}) -> Relative ({clamped_x}, {clamped_y}) -> Percentage ({percentage_x:.3f}, {percentage_y:.3f})")
+                self.logger.debug(f"Coordinates clamped from ({relative_x}, {relative_y}) to ({clamped_x}, {clamped_y})")
+            self.logger.debug(f"Global ({global_x}, {global_y}) -> Relative ({clamped_x}, {clamped_y}) -> Percentage ({percentage_x:.3f}, {percentage_y:.3f})")
         
         return CoordinateInfo(
             global_x=global_x,
@@ -194,7 +195,7 @@ class CoordinateSystemHandler:
         pixel_y = max(0, min(pixel_y, image_height - 1))
         
         if self.debug_mode:
-            print(f"DEBUG: Percentage ({coord_info.percentage_x:.3f}, {coord_info.percentage_y:.3f}) -> Pixel ({pixel_x}, {pixel_y}) in {image_width}x{image_height}")
+            self.logger.debug(f"Percentage ({coord_info.percentage_x:.3f}, {coord_info.percentage_y:.3f}) -> Pixel ({pixel_x}, {pixel_y}) in {image_width}x{image_height}")
         
         return pixel_x, pixel_y
     
@@ -202,7 +203,7 @@ class CoordinateSystemHandler:
         """Set the monitor that was last used for capture"""
         self._last_capture_monitor = monitor
         if self.debug_mode:
-            print(f"DEBUG: Set last capture monitor to {monitor.id}")
+            self.logger.debug(f"Set last capture monitor to {monitor.id}")
     
     def get_last_capture_monitor(self) -> Optional[MonitorInfo]:
         """Get the monitor that was last used for capture"""

@@ -123,13 +123,10 @@
                                     <input type="checkbox" id="export-html-{{ tutorial.tutorial_id }}" checked> HTML
                                 </label>
                                 <label class="export-checkbox">
-                                    <input type="checkbox" id="export-word-{{ tutorial.tutorial_id }}" checked> Word
+                                    <input type="checkbox" id="export-word-{{ tutorial.tutorial_id }}"> Word
                                 </label>
                                 <label class="export-checkbox">
                                     <input type="checkbox" id="export-markdown-{{ tutorial.tutorial_id }}"> Markdown
-                                </label>
-                                <label class="export-checkbox">
-                                    <input type="checkbox" id="export-pdf-{{ tutorial.tutorial_id }}"> PDF
                                 </label>
                             </div>
                             <button onclick="exportSelectedFormats('{{ tutorial.tutorial_id }}')" class="export-action-btn">Export Selected</button>
@@ -151,9 +148,8 @@
         <p>Export all tutorials to selected formats:</p>
         <div style="margin-bottom: 15px;">
             <label><input type="checkbox" id="bulk-html" checked> HTML</label>
-            <label style="margin-left: 15px;"><input type="checkbox" id="bulk-word" checked> Word</label>
+            <label style="margin-left: 15px;"><input type="checkbox" id="bulk-word"> Word</label>
             <label style="margin-left: 15px;"><input type="checkbox" id="bulk-markdown"> Markdown</label>
-            <label style="margin-left: 15px;"><input type="checkbox" id="bulk-pdf"> PDF</label>
         </div>
         <button onclick="exportAllTutorials()" class="btn btn-success">Export All Tutorials</button>
         <button onclick="deleteAllTutorials()" class="btn btn-danger">Delete All Tutorials</button>
@@ -954,7 +950,6 @@ async function exportSelectedFormats(tutorialId) {
     if (document.getElementById(`export-html-${tutorialId}`).checked) formats.push('html');
     if (document.getElementById(`export-word-${tutorialId}`).checked) formats.push('word');
     if (document.getElementById(`export-markdown-${tutorialId}`).checked) formats.push('markdown');
-    if (document.getElementById(`export-pdf-${tutorialId}`).checked) formats.push('pdf');
     
     if (formats.length === 0) {
         showAlert('Please select at least one export format', 'error');
@@ -1097,7 +1092,6 @@ async function exportAllTutorials() {
     if (document.getElementById('bulk-html').checked) formats.push('html');
     if (document.getElementById('bulk-word').checked) formats.push('word'); 
     if (document.getElementById('bulk-markdown').checked) formats.push('markdown');
-    if (document.getElementById('bulk-pdf').checked) formats.push('pdf');
     
     if (formats.length === 0) {
         showAlert('Please select at least one export format', 'error');

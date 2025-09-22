@@ -273,7 +273,7 @@ class TutorialWebServer:
         def api_export_tutorial(tutorial_id: str):
             """API: Export tutorial to specified formats"""
             data = request.get_json()
-            formats = data.get('formats', ['html', 'word', 'pdf'])
+            formats = data.get('formats', ['html'])
             
             try:
                 results = self.exporter.export_tutorial(tutorial_id, formats)
@@ -382,7 +382,7 @@ class TutorialWebServer:
             """API: Export all tutorials to specified formats"""
             try:
                 data = request.get_json() or {}
-                formats = data.get('formats', ['html', 'word'])
+                formats = data.get('formats', ['html'])
                 max_workers = data.get('max_workers', 3)
                 
                 results = self.exporter.export_all_tutorials(formats, max_workers)

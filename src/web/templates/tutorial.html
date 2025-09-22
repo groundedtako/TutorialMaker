@@ -70,17 +70,14 @@
 <div class="export-controls">
     <h3>Export Options</h3>
     <div style="margin-bottom: 15px;">
-        <label>
-            <input type="checkbox" id="export-html" checked> HTML (Interactive)
+        <label style="margin-left: 20px;">
+            <input type="checkbox" id="export-html" checked> HTML
         </label>
         <label style="margin-left: 20px;">
-            <input type="checkbox" id="export-word" checked> Word Document
+            <input type="checkbox" id="export-word"> Word Document
         </label>
         <label style="margin-left: 20px;">
             <input type="checkbox" id="export-markdown"> Markdown
-        </label>
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="export-pdf"> PDF (Optional)
         </label>
     </div>
     <button onclick="exportTutorial()" class="btn btn-success">Export Selected Formats</button>
@@ -563,15 +560,12 @@ async function saveTutorial() {
     } finally {
         // Re-enable buttons after save completes or fails
         setActionButtonsDisabled(false);
-    }
-}
 
 async function exportTutorial() {
     const formats = [];
     if (document.getElementById('export-html').checked) formats.push('html');
     if (document.getElementById('export-word').checked) formats.push('word');
     if (document.getElementById('export-markdown').checked) formats.push('markdown');
-    if (document.getElementById('export-pdf').checked) formats.push('pdf');
     
     if (formats.length === 0) {
         showAlert('Please select at least one export format', 'error');

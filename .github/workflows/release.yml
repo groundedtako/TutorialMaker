@@ -129,21 +129,19 @@ jobs:
       run: |
         echo "Contents of dist directory:"
         ls -la dist/
-        cd dist
+        
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          7z a -tzip tutorialmaker-windows-amd64.zip tutorialmaker-windows/
-          echo "ARCHIVE_NAME=dist/tutorialmaker-windows-amd64.zip" >> $GITHUB_ENV
-          echo "ARCHIVE_FILE=tutorialmaker-windows-amd64.zip" >> $GITHUB_ENV
+          cd dist && 7z a -tzip ../tutorialmaker-windows-amd64.zip tutorialmaker-windows/ && cd ..
+          echo "ARCHIVE_NAME=tutorialmaker-windows-amd64.zip" >> $GITHUB_ENV
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          tar -czf tutorialmaker-macos-amd64.tar.gz tutorialmaker-macos/
-          echo "ARCHIVE_NAME=dist/tutorialmaker-macos-amd64.tar.gz" >> $GITHUB_ENV
-          echo "ARCHIVE_FILE=tutorialmaker-macos-amd64.tar.gz" >> $GITHUB_ENV
+          cd dist && tar -czf ../tutorialmaker-macos-amd64.tar.gz tutorialmaker-macos/ && cd ..
+          echo "ARCHIVE_NAME=tutorialmaker-macos-amd64.tar.gz" >> $GITHUB_ENV
         else
-          tar -czf tutorialmaker-linux-amd64.tar.gz tutorialmaker-linux/
-          echo "ARCHIVE_NAME=dist/tutorialmaker-linux-amd64.tar.gz" >> $GITHUB_ENV
-          echo "ARCHIVE_FILE=tutorialmaker-linux-amd64.tar.gz" >> $GITHUB_ENV
+          cd dist && tar -czf ../tutorialmaker-linux-amd64.tar.gz tutorialmaker-linux/ && cd ..
+          echo "ARCHIVE_NAME=tutorialmaker-linux-amd64.tar.gz" >> $GITHUB_ENV
         fi
-        echo "Created archive:"
+        
+        echo "Created archive in root directory:"
         ls -la *.zip *.tar.gz 2>/dev/null || echo "No archives found"
     
     - name: Upload Release Asset

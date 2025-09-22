@@ -141,7 +141,7 @@ jobs:
         ls -la dist/
         
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          cd dist && 7z a -tzip ../tutorialmaker-windows-amd64.zip tutorialmaker-windows/ && cd ..
+          powershell "Compress-Archive -Path 'dist/tutorialmaker-windows' -DestinationPath 'tutorialmaker-windows-amd64.zip' -Force"
           echo "ARCHIVE_NAME=tutorialmaker-windows-amd64.zip" >> $GITHUB_ENV
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           cd dist && tar -czf ../tutorialmaker-macos-amd64.tar.gz tutorialmaker-macos/ && cd ..

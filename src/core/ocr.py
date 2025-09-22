@@ -234,6 +234,7 @@ class OCREngine:
             
         except Exception as e:
             print(f"Tesseract OCR failed: {e}")
+            self.tesseract_available = False
             return OCRResult()
     
     def _extract_with_easyocr(self, image: Image.Image) -> OCRResult:

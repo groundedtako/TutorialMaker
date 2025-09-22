@@ -142,6 +142,9 @@ datas = [
     ('CLAUDE.md', '.'),
     ('README.md', '.'),
     ('CHANGELOG.md', '.'),
+    
+    # Assets (icons, etc.)
+    ('assets', 'assets'),
 ]
 
 # Add Tesseract OCR binaries if available
@@ -229,18 +232,20 @@ a = Analysis(
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
 # Platform-specific executable configuration
+icon_path = str(current_dir / "assets" / "icon.ico")
 if sys.platform == 'win32':
     exe_name = 'tutorialmaker-windows.exe'
     console = True  # Keep console for debugging; can be False for production
-    icon = None  # Add icon path here if you have one
+    icon = icon_path if os.path.exists(icon_path) else None
 elif sys.platform == 'darwin':
     exe_name = 'tutorialmaker-macos'
     console = True
-    icon = None
+    # macOS uses ICNS format, but ICO will work as fallback
+    icon = icon_path if os.path.exists(icon_path) else None
 else:  # Linux
     exe_name = 'tutorialmaker-linux'
     console = True
-    icon = None
+    icon = icon_path if os.path.exists(icon_path) else None
 
 # Executable configuration
 exe = EXE(

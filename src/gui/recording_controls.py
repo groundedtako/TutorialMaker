@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     from .main_window import MainWindow
     from ..core.app import TutorialMakerApp
 
+from ..core.logger import get_logger
+
 
 class RecordingControlWindow:
     """Floating control panel for recording sessions"""
@@ -22,6 +24,7 @@ class RecordingControlWindow:
         self.window: Optional[tk.Toplevel] = None
         self.is_visible = False
         self.debug_mode = getattr(app, 'debug_mode', False)
+        self.logger = get_logger('gui.recording_controls')
         
         # Control variables
         self.step_count_var = tk.StringVar(value="0")
@@ -40,7 +43,7 @@ class RecordingControlWindow:
         self.window = tk.Toplevel(self.main_window.root)
         self.window.title("Recording Controls")
         # Initial size - will be adjusted after widgets are created
-        self.window.geometry("320x180")
+        self.window.geometry("380x220")  # Increased size for better button visibility
         self.window.resizable(True, True)
         
         # Make window stay on top
@@ -153,8 +156,8 @@ class RecordingControlWindow:
             req_height = main_frame.winfo_reqheight() + 40  # Add padding for title bar
             
             # Set minimum and maximum sizes
-            min_width, max_width = 300, 400
-            min_height, max_height = 160, 300
+            min_width, max_width = 350, 450  # Increased minimum width for better button visibility
+            min_height, max_height = 200, 350  # Increased minimum height
             
             # Constrain to reasonable bounds
             final_width = max(min_width, min(max_width, req_width))
@@ -185,37 +188,54 @@ class RecordingControlWindow:
         try:
             # Get current session and recording monitor
             current_session = getattr(self.app, 'current_session', None)
-            recording_monitor = None
+            if not current_session:
+                # Try session_manager.current_session as backup
+                session_manager = getattr(self.app, 'session_manager', None)
+                if session_manager:
+                    current_session = getattr(session_manager, 'current_session', None)
             
+            recording_monitor = None
             if current_session and hasattr(current_session, 'monitor_id'):
                 recording_monitor = current_session.monitor_id
-                print(f"DEBUG: Recording on monitor {recording_monitor}")
+                self.logger.debug(f"Recording on monitor {recording_monitor}")
+            elif current_session:
+                # Try to get selected_monitor property
+                recording_monitor = getattr(current_session, 'selected_monitor', None)
+                self.logger.debug(f"Recording on monitor {recording_monitor} (via selected_monitor)")
+            else:
+                self.logger.debug("No current session found, will use fallback positioning")
             
             # Get screen info
             screen_info = self.app.screen_capture.get_screen_info()
             monitors = screen_info.get('monitors', [])
+            self.logger.debug(f"Found {len(monitors)} monitors")
+            
+            # Debug: Print all monitor info
+            for i, monitor in enumerate(monitors, 1):
+                self.logger.debug(f"Monitor {i}: left={monitor.get('left')}, top={monitor.get('top')}, width={monitor.get('width')}, height={monitor.get('height')}")
             
             if len(monitors) > 1 and recording_monitor is not None:
                 # Multiple monitors - try to place on different monitor
                 for i, monitor in enumerate(monitors, 1):
                     if i != recording_monitor:  # Different monitor
                         # Position on top-right of this monitor
-                        monitor_x = monitor.get('x', 0)
+                        monitor_left = monitor.get('left', 0)
+                        monitor_top = monitor.get('top', 0)
                         monitor_width = monitor.get('width', 1920)
-                        x_pos = monitor_x + monitor_width - window_width - 20
-                        y_pos = monitor.get('y', 0) + 50
-                        print(f"DEBUG: Placing controls on monitor {i} at ({x_pos}, {y_pos})")
+                        x_pos = monitor_left + monitor_width - window_width - 20
+                        y_pos = monitor_top + 50
+                        self.logger.debug(f"Placing controls on monitor {i} at ({x_pos}, {y_pos}) (monitor bounds: left={monitor_left}, top={monitor_top}, width={monitor_width}) (different from recording monitor {recording_monitor})")
                         return x_pos, y_pos
             
             # Fallback to primary monitor or single monitor
             screen_width = self.window.winfo_screenwidth()
             x_pos = screen_width - window_width - 20
             y_pos = 50
-            print(f"DEBUG: Using fallback position at ({x_pos}, {y_pos})")
+            self.logger.debug(f"Using fallback position at ({x_pos}, {y_pos}) - single monitor or no recording monitor detected")
             return x_pos, y_pos
             
         except Exception as e:
-            print(f"DEBUG: Error in smart positioning: {e}")
+            self.logger.error(f"Error in smart positioning: {e}")
             # Fallback to simple positioning
             screen_width = self.window.winfo_screenwidth()
             return screen_width - window_width - 20, 50
@@ -347,7 +367,7 @@ class RecordingControlWindow:
             
             # Ensure proper sizing when showing
             self.window.after(100, self._auto_size_window)
-            self.window.after(150, self._position_window)
+            self.window.after(200, self._position_window)  # Increased delay to ensure session is available
             
             self._start_updates()
     

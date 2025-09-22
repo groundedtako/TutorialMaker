@@ -720,7 +720,7 @@ async function updateRecordingUI() {
 document.addEventListener('DOMContentLoaded', function() {
     updateRecordingUI();
     // Update recording UI every 2 seconds
-    setInterval(updateRecordingUI, 2000);
+    setInterval(updateRecordingUI, 500); // Poll every 500ms for better responsiveness
     
     // Load file info for all tutorials
     loadAllFileInfo();

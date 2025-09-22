@@ -91,8 +91,9 @@ class SettingsDialog:
         """Create settings dialog window"""
         self.dialog = tk.Toplevel(self.parent)
         self.dialog.title("TutorialMaker Settings")
-        self.dialog.geometry("500x600")
+        self.dialog.geometry("650x700")  # Increased width and height for better button visibility
         self.dialog.resizable(True, True)
+        self.dialog.minsize(600, 650)    # Set minimum size to prevent buttons from being cut off
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
         

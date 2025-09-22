@@ -26,11 +26,17 @@ class MainWindow:
         self._create_widgets()
         self._setup_bindings()
         
+        # Register for UI state change notifications
+        self.app.register_ui_callback(self._on_recording_state_changed)
+        
     def _setup_window(self):
         """Configure main window properties"""
         self.root.title("TutorialMaker")
-        self.root.geometry("800x600")
-        self.root.minsize(600, 400)
+        self.root.geometry("1000x750")  # Increased width for button visibility, height for at least 3 recordings
+        self.root.minsize(900, 650)     # Increased minimum size to ensure proper layout
+        
+        # Set application icon
+        self._set_icon()
         
         # Configure DPI awareness for Windows
         try:
@@ -667,6 +673,85 @@ class MainWindow:
             self.recording_window.hide()
         
         self.root.destroy()
+    
+    def _set_icon(self):
+        """Set application icon"""
+        try:
+            # Try to set icon from assets directory
+            from pathlib import Path
+            import os
+            
+            # Find the project root directory (contains assets folder)
+            # Start from this file's location and go up until we find assets
+            current_file = Path(__file__).resolve()
+            project_root = current_file.parent.parent.parent  # Go up from src/gui/
+            
+            # Alternative: search for assets directory more robustly
+            search_paths = [
+                project_root / "assets" / "icon.ico",  # Normal case
+                Path.cwd() / "assets" / "icon.ico",    # When running from project root
+                current_file.parent / "assets" / "icon.ico",  # Relative to current file
+            ]
+            
+            icon_path = None
+            for path in search_paths:
+                if path.exists():
+                    icon_path = path
+                    break
+            
+            if icon_path:
+                self.root.iconbitmap(str(icon_path))
+                print(f"Icon loaded from: {icon_path}")
+            else:
+                print("Warning: Icon file not found, using default")
+                # List searched paths for debugging
+                print("Searched paths:")
+                for path in search_paths:
+                    print(f"  {path} (exists: {path.exists()})")
+                    
+        except Exception as e:
+            # Icon loading failed, continue without icon
+            print(f"Warning: Could not load application icon: {e}")
+    
+    def _on_recording_state_changed(self, event_type: str, data: dict):
+        """Handle recording state changes from other interfaces"""
+        try:
+            # Use thread-safe UI updates
+            def update_ui():
+                if event_type == 'recording_started':
+                    self.status_var.set("Recording...")
+                    self.start_btn.config(state='disabled')
+                    self.stop_btn.config(state='normal')
+                    self.new_btn.config(state='disabled')
+                    # Show recording controls if not already shown
+                    if not self.recording_window or not self.recording_window.is_visible:
+                        self._show_recording_controls()
+                
+                elif event_type == 'recording_stopped':
+                    tutorial_id = data.get('tutorial_id')
+                    step_count = data.get('step_count', 0)
+                    title = data.get('title', 'Unknown')
+                    
+                    self.status_var.set(f"Recording completed: {step_count} steps captured")
+                    self._reset_controls()
+                    self._refresh_tutorials()
+                    
+                    # Show completion stats and then hide recording controls
+                    if self.recording_window:
+                        self.recording_window.show_completion_stats(step_count, title)
+                        self.root.after(3000, lambda: self.recording_window.hide() if self.recording_window else None)
+                
+                elif event_type == 'recording_paused':
+                    self.status_var.set("Recording paused...")
+                
+                elif event_type == 'recording_resumed':
+                    self.status_var.set("Recording...")
+            
+            # Schedule UI update on main thread
+            self.root.after(0, update_ui)
+            
+        except Exception as e:
+            print(f"Error handling recording state change: {e}")
     
     def show(self):
         """Show the main window"""

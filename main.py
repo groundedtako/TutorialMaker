@@ -105,9 +105,11 @@ def main():
                 print()
                 
                 desktop_app = TutorialMakerDesktopApp(debug_mode=args.debug)
-                print("DEBUG: Desktop app created, initializing...")
+                if args.debug:
+                    print("DEBUG: Desktop app created, initializing...")
                 desktop_app.initialize()
-                print("DEBUG: Desktop app initialized, running...")
+                if args.debug:
+                    print("DEBUG: Desktop app initialized, running...")
                 desktop_app.run()
                 
             except ImportError as e:

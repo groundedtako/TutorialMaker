@@ -11,6 +11,7 @@ import atexit
 from typing import Optional
 
 from ..core.app import TutorialMakerApp
+from ..core.logger import get_logger, set_debug_mode
 from .main_window import MainWindow
 from .system_tray import SystemTrayManager
 
@@ -21,7 +22,11 @@ class TutorialMakerDesktopApp:
     def __init__(self, debug_mode: bool = False, start_minimized: bool = False):
         self.debug_mode = debug_mode
         self.start_minimized = start_minimized
-        
+
+        # Configure logging based on debug mode
+        set_debug_mode(debug_mode)
+        self.logger = get_logger('gui.desktop_app')
+
         # Core components
         self.core_app: Optional[TutorialMakerApp] = None
         self.main_window: Optional[MainWindow] = None
@@ -43,7 +48,7 @@ class TutorialMakerDesktopApp:
             self.core_app = TutorialMakerApp(debug_mode=self.debug_mode)
             
             # Desktop app ready - screen selection will be context-aware
-            print(f"DEBUG: Desktop app initialized - screen selection will use GUI dialogs when appropriate")
+            self.logger.debug("Desktop app initialized - screen selection will use GUI dialogs when appropriate")
             
             # Initialize main window
             self.main_window = MainWindow(self.core_app)

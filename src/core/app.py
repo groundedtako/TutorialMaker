@@ -5,11 +5,12 @@ Coordinates all components and manages recording sessions
 
 import time
 import threading
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
 from pathlib import Path
 
 from .capture import ScreenCapture
 from .events import EventMonitor, MouseClickEvent, KeyPressEvent, ManualCaptureEvent, EventType
+from .logger import get_logger
 from .ocr import OCREngine, OCRResult
 from .smart_ocr import SmartOCRProcessor
 from .storage import TutorialStorage, TutorialStep, TutorialMetadata
@@ -26,6 +27,12 @@ class TutorialMakerApp:
     """Main application class"""
     
     def __init__(self, debug_mode: bool = False):
+        self.debug_mode = debug_mode
+        self.logger = get_logger('core.app')
+
+        # Initialize UI callback system early (needed by web server)
+        self.ui_callbacks: List[Callable] = []
+        
         # Initialize components
         self.screen_capture = ScreenCapture(debug_mode=debug_mode)
         self.event_monitor = EventMonitor()
@@ -35,7 +42,6 @@ class TutorialMakerApp:
         self.exporter = TutorialExporter(self.storage)
         self.web_server = TutorialWebServer(self.storage)
         self.web_server.set_app_instance(self)  # Allow web server to access session status
-        self.debug_mode = debug_mode
         
         # Event queue for clean event processing
         self.event_queue = EventQueue()
@@ -81,8 +87,8 @@ class TutorialMakerApp:
         # Flag to indicate if we're in web mode (to avoid GUI dialogs)
         self.web_mode: bool = False
         
-        print("TutorialMaker initialized successfully")
-        print(f"DEBUG: Initial web_mode = {self.web_mode}")
+        self.logger.info("TutorialMaker initialized successfully")
+        self.logger.debug(f"Initial web_mode = {self.web_mode}")
         self._print_status()
     
     def _print_status(self):
@@ -96,11 +102,10 @@ class TutorialMakerApp:
         if 'monitors' in screen_info:
             self.coordinate_handler.update_monitor_info(screen_info['monitors'])
         
-        print("\nSystem Status:")
-        print(f"  Screen: {screen_info['width']}x{screen_info['height']} ({screen_info['monitor_count']} monitors)")
-        print(f"  Events: Mouse={event_status['has_mouse_access']}, Keyboard={event_status['has_keyboard_access']}")
-        print(f"  OCR: Tesseract={ocr_stats['tesseract_available']}, EasyOCR={ocr_stats['easyocr_available']}")
-        print(f"  Storage: {storage_stats['total_tutorials']} tutorials, {storage_stats['total_size_mb']}MB")
+        self.logger.info(f"Screen: {screen_info['width']}x{screen_info['height']} ({screen_info['monitor_count']} monitors)")
+        self.logger.debug(f"Events: Mouse={event_status['has_mouse_access']}, Keyboard={event_status['has_keyboard_access']}")
+        self.logger.debug(f"OCR: Tesseract={ocr_stats['tesseract_available']}, EasyOCR={ocr_stats['easyocr_available']}")
+        self.logger.info(f"Storage: {storage_stats['total_tutorials']} tutorials, {storage_stats['total_size_mb']}MB")
     
     def select_recording_monitor(self) -> Optional[int]:
         """
@@ -236,6 +241,42 @@ class TutorialMakerApp:
         print(f"DEBUG: new_tutorial returning tutorial_id: {tutorial_id}")
         return tutorial_id
     
+    # UI Callback System for cross-interface synchronization
+    def register_ui_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
+        """
+        Register a UI callback to be notified of recording state changes
+        
+        Args:
+            callback: Function that takes (event_type, data) parameters
+                     event_type: 'recording_started', 'recording_stopped', 'recording_paused', 'recording_resumed'
+                     data: Dictionary with relevant state information
+        """
+        if callback not in self.ui_callbacks:
+            self.ui_callbacks.append(callback)
+    
+    def unregister_ui_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
+        """Remove a UI callback"""
+        if callback in self.ui_callbacks:
+            self.ui_callbacks.remove(callback)
+    
+    def _notify_ui_callbacks(self, event_type: str, data: Dict[str, Any] = None):
+        """Notify all registered UI callbacks of a state change"""
+        if data is None:
+            data = {}
+        
+        # Add current session status to the data
+        try:
+            status = self.get_current_session_status()
+            data.update(status)
+        except:
+            pass
+        
+        for callback in self.ui_callbacks:
+            try:
+                callback(event_type, data)
+            except Exception as e:
+                print(f"Warning: UI callback error: {e}")
+    
     def start_recording(self) -> bool:
         """
         Start recording the current tutorial
@@ -243,7 +284,10 @@ class TutorialMakerApp:
         Returns:
             True if recording started successfully
         """
-        return self.session_manager.start_recording()
+        success = self.session_manager.start_recording()
+        if success:
+            self._notify_ui_callbacks('recording_started')
+        return success
     
     def pause_recording(self):
         """Pause the current recording"""
@@ -252,6 +296,7 @@ class TutorialMakerApp:
             self.event_queue.remove_last_event()
         
         self.session_manager.pause_recording()
+        self._notify_ui_callbacks('recording_paused')
     
     def resume_recording(self):
         """Resume the current recording"""
@@ -259,6 +304,7 @@ class TutorialMakerApp:
         # because session.is_recording() returns False when paused
         
         self.session_manager.resume_recording()
+        self._notify_ui_callbacks('recording_resumed')
     
     def stop_recording(self) -> Optional[str]:
         """
@@ -283,7 +329,10 @@ class TutorialMakerApp:
             elif self.debug_mode:
                 print(f"DEBUG: Keeping last event in queue ({last_event.event_type}, {time.time() - last_event.timestamp:.1f}s ago)")
         
-        return self.session_manager.stop_recording()
+        tutorial_id = self.session_manager.stop_recording()
+        if tutorial_id:
+            self._notify_ui_callbacks('recording_stopped', {'tutorial_id': tutorial_id})
+        return tutorial_id
     
     def _on_mouse_click(self, event: MouseClickEvent):
         """Handle mouse click events - capture screenshot and calculate coordinates, then add to queue during recording"""

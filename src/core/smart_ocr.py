@@ -61,6 +61,35 @@ class SmartOCRProcessor:
         self.min_word_length = 1   # Minimum word length (allow single meaningful characters)
         self.logger = get_logger('core.smart_ocr')
         
+        # Check package availability once during initialization
+        self.opencv_available = OPENCV_AVAILABLE
+        self.numpy_available = NUMPY_AVAILABLE
+        self.pil_available = PIL_AVAILABLE
+        
+        # Check OCR engine availability
+        self.tesseract_available = False
+        self.easyocr_available = False
+        self.easyocr_reader = None
+        
+        # Initialize Tesseract
+        try:
+            import pytesseract
+            self.tesseract_available = True
+            self.logger.debug("Tesseract OCR available")
+        except ImportError:
+            self.logger.debug("Tesseract OCR not available")
+        
+        # Initialize EasyOCR
+        try:
+            import easyocr
+            self.easyocr_reader = easyocr.Reader(['en'], gpu=False)
+            self.easyocr_available = True
+            self.logger.debug("EasyOCR available and initialized")
+        except ImportError:
+            self.logger.debug("EasyOCR not available")
+        except Exception as e:
+            self.logger.warning(f"EasyOCR initialization failed: {e}")
+        
         # Element detection settings
         self.button_min_size = (40, 25)    # Increased minimum button size
         self.button_max_size = (400, 80)   # Increased maximum button size  
@@ -123,7 +152,7 @@ class SmartOCRProcessor:
         """
         regions = []
         
-        if not OPENCV_AVAILABLE or not NUMPY_AVAILABLE:
+        if not self.opencv_available or not self.numpy_available:
             return regions
         
         try:
@@ -450,7 +479,7 @@ class SmartOCRProcessor:
         Analyze visual context around click point to infer element type
         """
         
-        if not OPENCV_AVAILABLE or not NUMPY_AVAILABLE:
+        if not self.opencv_available or not self.numpy_available:
             return None
         
         try:
@@ -548,23 +577,11 @@ class SmartOCRProcessor:
         Success rate: 100% for detected_region files (Export, OK, Stop Recording)
         """
         try:
-            # Check if EasyOCR is available
-            try:
-                import easyocr
-                easyocr_available = True
-            except ImportError:
-                easyocr_available = False
-                
-            if not easyocr_available:
+            if not self.easyocr_available:
                 return None
             
-            # Import EasyOCR if available
-            import easyocr
-            if not hasattr(self, '_easyocr_reader') or self._easyocr_reader is None:
-                self._easyocr_reader = easyocr.Reader(['en'])
-            
             # Apply sharpening preprocessing (winning strategy)
-            if PIL_AVAILABLE:
+            if self.pil_available:
                 enhancer = ImageEnhance.Sharpness(region_image)
                 sharpened_image = enhancer.enhance(2.0)
             else:
@@ -575,7 +592,7 @@ class SmartOCRProcessor:
             img_array = np.array(sharpened_image)
             
             # Run EasyOCR
-            results = self._easyocr_reader.readtext(img_array)
+            results = self.easyocr_reader.readtext(img_array)
             
             if results:
                 # Combine all detected text
@@ -599,18 +616,11 @@ class SmartOCRProcessor:
         Success rate: 95% confidence for "Recording in progress..." text
         """
         try:
-            # Check if Tesseract is available
-            try:
-                import pytesseract
-                tesseract_available = True
-            except ImportError:
-                tesseract_available = False
-                
-            if not tesseract_available:
+            if not self.tesseract_available:
                 return None
             
             # Apply threshold preprocessing (winning strategy)
-            if OPENCV_AVAILABLE and NUMPY_AVAILABLE:
+            if self.opencv_available and self.numpy_available:
                 import cv2
                 import numpy as np
                 
@@ -624,7 +634,7 @@ class SmartOCRProcessor:
             else:
                 # Fallback threshold using PIL
                 threshold_image = region_image.convert('L')
-                if PIL_AVAILABLE:
+                if self.pil_available:
                     # Simple threshold
                     threshold_image = threshold_image.point(lambda x: 255 if x > 127 else 0, mode='1')
             
@@ -652,23 +662,13 @@ class SmartOCRProcessor:
         
         try:
             # Fallback 1: EasyOCR with high contrast (good for some cases)  
-            try:
-                import easyocr
-                easyocr_available = True
-            except ImportError:
-                easyocr_available = False
-                
-            if easyocr_available and PIL_AVAILABLE:
+            if self.easyocr_available and self.pil_available:
                 enhancer = ImageEnhance.Contrast(region_image)
                 high_contrast = enhancer.enhance(2.5)
                 
-                if not hasattr(self, '_easyocr_reader') or self._easyocr_reader is None:
-                    import easyocr
-                    self._easyocr_reader = easyocr.Reader(['en'])
-                
                 import numpy as np
                 img_array = np.array(high_contrast)
-                easyocr_results = self._easyocr_reader.readtext(img_array)
+                easyocr_results = self.easyocr_reader.readtext(img_array)
                 
                 if easyocr_results:
                     texts = [result[1] for result in easyocr_results]
@@ -678,13 +678,7 @@ class SmartOCRProcessor:
                     results.append(OCRResult(combined_text, avg_confidence, "easyocr_high_contrast"))
             
             # Fallback 2: Tesseract with PSM 6 (good for mixed content)
-            try:
-                import pytesseract
-                tesseract_available = True
-            except ImportError:
-                tesseract_available = False
-                
-            if tesseract_available:
+            if self.tesseract_available:
                 import pytesseract
                 text = pytesseract.image_to_string(region_image, config='--psm 6').strip()
                 if text:
@@ -774,7 +768,7 @@ class SmartOCRProcessor:
         """
         text_crops = []
         
-        if not OPENCV_AVAILABLE or not NUMPY_AVAILABLE:
+        if not self.opencv_available or not self.numpy_available:
             return text_crops
         
         try:

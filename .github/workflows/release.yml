@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  actions: read
+  id-token: write
 
 env:
   PYTHON_VERSION: '3.9'
@@ -91,13 +93,19 @@ jobs:
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        $url = "https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.3.20231005/tesseract-ocr-w64-setup-5.3.3.20231005.exe"
-        Invoke-WebRequest -Uri $url -OutFile "tesseract-installer.exe"
-        Start-Process -FilePath "tesseract-installer.exe" -ArgumentList "/S" -Wait
+        # Use chocolatey to install tesseract (more reliable)
+        choco install tesseract --yes
         New-Item -ItemType Directory -Force -Path "tesseract_bundle/bin"
         New-Item -ItemType Directory -Force -Path "tesseract_bundle/share/tessdata"
+        if (Test-Path "C:/ProgramData/chocolatey/lib/tesseract/tools/tesseract.exe") {
+          Copy-Item "C:/ProgramData/chocolatey/lib/tesseract/tools/tesseract.exe" "tesseract_bundle/bin/" -ErrorAction SilentlyContinue
+        }
+        if (Test-Path "C:/ProgramData/chocolatey/lib/tesseract/tools/tessdata") {
+          Copy-Item "C:/ProgramData/chocolatey/lib/tesseract/tools/tessdata/*" "tesseract_bundle/share/tessdata/" -Recurse -ErrorAction SilentlyContinue
+        }
+        # Also check standard Program Files location
         if (Test-Path "C:/Program Files/Tesseract-OCR/tesseract.exe") {
-          Copy-Item "C:/Program Files/Tesseract-OCR/tesseract.exe" "tesseract_bundle/bin/"
+          Copy-Item "C:/Program Files/Tesseract-OCR/tesseract.exe" "tesseract_bundle/bin/" -ErrorAction SilentlyContinue
         }
         if (Test-Path "C:/Program Files/Tesseract-OCR/tessdata") {
           Copy-Item "C:/Program Files/Tesseract-OCR/tessdata/*" "tesseract_bundle/share/tessdata/" -Recurse -ErrorAction SilentlyContinue
@@ -145,8 +153,9 @@ jobs:
         ls -la *.zip *.tar.gz 2>/dev/null || echo "No archives found"
     
     - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ needs.release.outputs.tag_name }}
+        files: ${{ env.ARCHIVE_NAME }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        echo "Uploading ${{ env.ARCHIVE_NAME }} to release ${{ needs.release.outputs.tag_name }}"
-        gh release upload ${{ needs.release.outputs.tag_name }} ${{ env.ARCHIVE_NAME }}

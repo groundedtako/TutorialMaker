@@ -40,6 +40,9 @@ class TutorialWebServer:
         self.port = port
         self.app_instance = None  # Reference to main app instance for session status
         
+        # For cross-interface synchronization
+        self.last_state_change = 0  # Timestamp of last state change
+        
         # Create Flask app
         self.app = Flask(__name__, 
                         template_folder=str(Path(__file__).parent / "templates"),
@@ -724,4 +727,14 @@ class TutorialWebServer:
     def set_app_instance(self, app_instance):
         """Set reference to main app instance for session status"""
         self.app_instance = app_instance
+        
+        # Register for UI state change notifications for better web responsiveness
+        if hasattr(app_instance, 'register_ui_callback'):
+            app_instance.register_ui_callback(self._on_recording_state_changed)
+    
+    def _on_recording_state_changed(self, event_type: str, data: dict):
+        """Handle recording state changes from other interfaces"""
+        import time
+        self.last_state_change = time.time()
+        print(f"DEBUG: Web server notified of state change: {event_type}")
     

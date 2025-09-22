@@ -222,16 +222,8 @@ a = Analysis(
     noarchive=False,
 )
 
-# Collect all specified packages
-for pkg in collect_all:
-    try:
-        a.binaries += collect_submodules(pkg)
-        a.datas += collect_data_files(pkg)
-    except Exception as e:
-        print(f"Warning: Could not collect {pkg}: {e}")
-
-# Remove duplicate data files
-a.datas = list(set(a.datas))
+# Note: Removed problematic package collection loop
+# Hidden imports and data files are already comprehensive above
 
 # PYZ archive
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)

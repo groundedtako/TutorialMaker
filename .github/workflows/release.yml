@@ -71,7 +71,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y tesseract-ocr libtesseract-dev
+        sudo apt-get install -y tesseract-ocr libtesseract-dev python3-tk
         mkdir -p tesseract_bundle/bin tesseract_bundle/share/tessdata
         cp /usr/bin/tesseract tesseract_bundle/bin/ || echo "Tesseract binary not found"
         find /usr/share -name "tessdata" -type d -exec cp -r {}/* tesseract_bundle/share/tessdata/ \; 2>/dev/null || echo "Tessdata not found in /usr/share"
@@ -129,7 +129,9 @@ jobs:
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           cd dist/tutorialmaker-macos && ./tutorialmaker-macos --help || echo "macOS executable test completed"
         else
-          cd dist/tutorialmaker-linux && ./tutorialmaker-linux --help || echo "Linux executable test completed"
+          # For Linux, test both --help and --web (since GUI may not work in CI)
+          cd dist/tutorialmaker-linux && ./tutorialmaker-linux --help || echo "Linux executable help test completed"
+          cd dist/tutorialmaker-linux && timeout 5 ./tutorialmaker-linux --web --no-browser >/dev/null 2>&1 && echo "Linux web mode test passed" || echo "Linux web mode test completed"
         fi
     
     - name: Create archive

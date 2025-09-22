@@ -32,17 +32,43 @@ jobs:
         echo "tag=$TAG" >> $GITHUB_OUTPUT
         echo "Generated tag: $TAG"
     
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # Get the last tag (if any)
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [ -z "$LAST_TAG" ]; then
+          # If no previous tag, get commits from the beginning
+          COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" | head -20)
+        else
+          # Get commits since last tag
+          COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --pretty=format:"- %s (%h)")
+        fi
+        
+        # Create release notes
+        cat > release_notes.md << EOF
+        Automated release from commit ${{ github.sha }}
+        
+        ## Changes since last release
+        ${COMMITS}
+        
+        ## Build Information
+        - Built from latest main branch
+        - Cross-platform executables included
+        - Build date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        EOF
+        
+        echo "Generated release notes:"
+        cat release_notes.md
+
     - name: Create Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gh release create ${{ steps.tag.outputs.tag }} \
           --title "Release ${{ steps.tag.outputs.tag }}" \
-          --notes "Automated release from commit ${{ github.sha }}
-
-        ## Changes
-        - Built from latest main branch  
-        - Cross-platform executables included"
+          --notes-file release_notes.md
 
   build:
     name: Build Executables

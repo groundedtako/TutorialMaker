@@ -40,29 +40,29 @@ A privacy-focused, local-only screen recording tool for creating step-by-step tu
 
 3. **Launch the desktop application:**
    
-   **Choose the version that works best for your system:**
-   
-   **🚀 Standard Version** (full features):
+   **🚀 Desktop GUI** (recommended):
    ```bash
-   python3 tutorial_maker_desktop.py
+   python main.py --gui
    ```
-   *Includes: Global hotkeys, system tray, floating controls*
+   *Full desktop interface with system tray and hotkeys*
    
-   **🔒 Safe Version** (no global hotkeys):
+   **🌐 Web Interface**:
    ```bash
-   python3 tutorial_maker_desktop_safe.py
+   python main.py --web
    ```
-   *Includes: System tray, floating controls. No global hotkeys.*
+   *Browser-based interface for editing and management*
    
-   **🖥️ GUI-Only Version** (maximum compatibility):
+   **💻 Command Line Interface**:
    ```bash
-   python3 tutorial_maker_gui_only.py
+   python main.py --cli
    ```
-   *Includes: Main window only. Works on any system.*
+   *Terminal-based interface for automation*
    
-   > ℹ️ **For older macOS:** Use GUI-only version if you get version errors.
-   > 
-   > ℹ️ **Recommended:** Try standard → safe → GUI-only until one works.
+   **🔧 With Debug Mode**:
+   ```bash
+   python main.py --debug --log-level DEBUG
+   ```
+   *Enables detailed logging and visual click markers*
 
 ### First Tutorial
 
@@ -126,30 +126,36 @@ During recording, a minimal control panel shows:
 ## ⚙️ Command Line Options
 
 ```bash
-python3 tutorial_maker_desktop.py [OPTIONS]
+python main.py [OPTIONS]
 
 Options:
-  --debug       Enable debug mode (shows precise click markers)
-  --minimized   Start minimized to system tray
-  --no-tray     Disable system tray integration
-  --version     Show version information
-  --help        Show help message
+  --debug           Enable debug mode with precise click markers
+  --log-level LEVEL Set logging level (DEBUG, INFO, WARNING, ERROR)
+  --cli             Use command-line interface
+  --web             Force web interface (default is desktop GUI)
+  --gui             Force desktop GUI interface (default)
+  --port PORT       Web server port (default: 5001)
+  --no-browser      Don't open browser automatically
+  --help            Show help message
 ```
 
 ### Examples
 
 ```bash
-# Start normally
-python3 tutorial_maker_desktop.py
+# Start desktop GUI (default)
+python main.py
 
-# Enable debug mode
-python3 tutorial_maker_desktop.py --debug
+# Enable debug mode with detailed logging
+python main.py --debug --log-level DEBUG
 
-# Start minimized to tray
-python3 tutorial_maker_desktop.py --minimized
+# Force web interface
+python main.py --web --port 8080
 
-# Disable system tray
-python3 tutorial_maker_desktop.py --no-tray
+# Command line interface
+python main.py --cli
+
+# Web interface without auto-opening browser
+python main.py --web --no-browser
 ```
 
 ## 🛠️ Settings & Configuration

@@ -43,6 +43,27 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### Command Line Options
+```bash
+python main.py [OPTIONS]
+
+Options:
+  --debug           Enable debug mode with precise click markers
+  --log-level LEVEL Set logging level (DEBUG, INFO, WARNING, ERROR)
+  --cli             Use command-line interface
+  --web             Force web interface (default is desktop GUI)
+  --gui             Force desktop GUI interface (default)
+  --port PORT       Web server port (default: 5001)
+  --no-browser      Don't open browser automatically
+  --help            Show help message
+```
+
+### Logging & Debugging
+- **Structured Logging**: All application events are logged with appropriate levels
+- **Log Files**: Daily log files saved to `logs/tutorialmaker_YYYYMMDD.log`
+- **Debug Mode**: `--debug` enables detailed logging and visual click markers
+- **Log Levels**: Control verbosity with `--log-level DEBUG/INFO/WARNING/ERROR`
+
 ## 📖 How It Works
 
 1. **Record** - Capture your screen interactions automatically

@@ -32,6 +32,19 @@ python scripts/export_tutorials.py [tutorial_id] [--format html,word,pdf]
 - Useful for migration or bulk operations
 - Can be automated in workflows
 
+### `convert_prints_to_logging.py`
+Development utility for migrating print statements to structured logging.
+
+**Usage:**
+```bash
+python scripts/convert_prints_to_logging.py
+```
+
+**Purpose:**
+- Automatically convert print statements to logging calls
+- Maintain consistent logging patterns across codebase
+- Development and maintenance tool
+
 ## Running Scripts
 
 All scripts should be run from the project root directory:

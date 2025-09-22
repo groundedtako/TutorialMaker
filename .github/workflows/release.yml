@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.tag.outputs.tag }}
-      upload_url: ${{ steps.release.outputs.upload_url }}
     
     steps:
     - uses: actions/checkout@v4
@@ -32,21 +31,16 @@ jobs:
         echo "Generated tag: $TAG"
     
     - name: Create Release
-      id: release
-      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.tag.outputs.tag }}
-        release_name: Release ${{ steps.tag.outputs.tag }}
-        body: |
-          Automated release from commit ${{ github.sha }}
-          
-          ## Changes
-          - Built from latest main branch
-          - Cross-platform executables included
-        draft: false
-        prerelease: false
+      run: |
+        gh release create ${{ steps.tag.outputs.tag }} \
+          --title "Release ${{ steps.tag.outputs.tag }}" \
+          --notes "Automated release from commit ${{ github.sha }}
+
+        ## Changes
+        - Built from latest main branch  
+        - Cross-platform executables included"
 
   build:
     name: Build Executables
@@ -153,11 +147,8 @@ jobs:
         ls -la *.zip *.tar.gz 2>/dev/null || echo "No archives found"
     
     - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.release.outputs.upload_url }}
-        asset_path: ${{ env.ARCHIVE_NAME }}
-        asset_name: ${{ env.ARCHIVE_FILE }}
-        asset_content_type: application/octet-stream
+      run: |
+        echo "Uploading ${{ env.ARCHIVE_NAME }} to release ${{ needs.release.outputs.tag_name }}"
+        gh release upload ${{ needs.release.outputs.tag_name }} ${{ env.ARCHIVE_NAME }}

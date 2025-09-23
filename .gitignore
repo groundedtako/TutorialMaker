@@ -145,6 +145,7 @@ tesseract_bundle/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~

@@ -13,6 +13,13 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    print("Warning: PIL not available. Screenshot processing may be limited.")
+
 from .events import MouseClickEvent, KeyPressEvent, TextInputEvent, EventType
 from .logger import get_logger
 
@@ -252,13 +259,25 @@ class TutorialStorage:
                     tutorial_name = tutorial_name[:20]
             
             screenshots_dir = project_path / "screenshots"
-            # Include tutorial name and hash in filename: tutorialname_abcd1234_step_001.png
+            # Include tutorial name and hash in filename: tutorialname_abcd1234_step_001.jpg
             tutorial_hash = tutorial_id.replace('-', '')[:8]  # First 8 chars without hyphens
-            screenshot_filename = f"{tutorial_name}_{tutorial_hash}_step_{step_number:03d}.png"
+            screenshot_filename = f"{tutorial_name}_{tutorial_hash}_step_{step_number:03d}.jpg"
             screenshot_path = screenshots_dir / screenshot_filename
             
-            # Save image
-            image.save(screenshot_path, "PNG")
+            # Save image as JPEG for faster saving and smaller file size
+            # Convert RGBA to RGB if needed (JPEG doesn't support transparency)
+            if image.mode in ('RGBA', 'LA', 'P'):
+                # Create white background for transparent images
+                rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                if image.mode == 'P':
+                    image = image.convert('RGBA')
+                rgb_image.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                image = rgb_image
+            elif image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Save as optimized JPEG (quality=85 is good balance of size vs quality)
+            image.save(screenshot_path, "JPEG", quality=85, optimize=True)
             
             # Return relative path
             return f"screenshots/{screenshot_filename}"

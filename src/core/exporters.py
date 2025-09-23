@@ -152,6 +152,11 @@ class HTMLExporter:
                     with open(screenshot_full_path, 'rb') as img_file:
                         screenshot_b64 = base64.b64encode(img_file.read()).decode('utf-8')
                     
+                    # Determine image format for proper MIME type
+                    img_format = "png"  # default
+                    if screenshot_full_path.suffix.lower() in ['.jpg', '.jpeg']:
+                        img_format = "jpeg"
+                    
                     # Generate click indicator using percentage coordinates if available
                     if step.coordinates_pct and screenshot_width > 0:
                         # Use percentage coordinates for accurate positioning
@@ -173,7 +178,7 @@ class HTMLExporter:
             if screenshot_b64:
                 screenshot_html = f"""
                 <div class="screenshot-container">
-                    <img src="data:image/png;base64,{screenshot_b64}" 
+                    <img src="data:image/{img_format};base64,{screenshot_b64}" 
                          alt="Step {step.step_number} screenshot" 
                          class="step-screenshot">
                     {click_indicator_html}

@@ -11,7 +11,36 @@
         </div>
         <div class="tutorial-actions">
             <button onclick="saveTutorial()" class="btn btn-success">Save Changes</button>
-            <button onclick="exportTutorial()" class="btn">Export</button>
+
+            <!-- Export Dropdown -->
+            <div class="dropdown-container">
+                <button onclick="toggleExportDropdown()" class="btn">Export Selected</button>
+                <div id="export-dropdown" class="dropdown-menu">
+                    <label><input type="checkbox" id="export-html" checked> HTML</label>
+                    <label><input type="checkbox" id="export-word"> Word</label>
+                    <label><input type="checkbox" id="export-markdown"> Markdown</label>
+                    <button onclick="exportTutorial()" class="btn btn-success" style="margin-top: 10px; width: 100%;">Export Now</button>
+                </div>
+            </div>
+
+            <button onclick="previewTutorial()" class="btn">Preview</button>
+
+            <!-- Formatting Help Dropdown -->
+            <div class="dropdown-container">
+                <button onclick="toggleFormattingDropdown()" class="btn btn-secondary">Formatting</button>
+                <div id="formatting-dropdown" class="dropdown-menu formatting-dropdown">
+                    <h4>Formatting Guide:</h4>
+                    <div class="formatting-examples">
+                        <div><strong>**bold text**</strong> → <strong>bold text</strong></div>
+                        <div><strong>*italic text*</strong> → <em>italic text</em></div>
+                        <div><strong>`code`</strong> → <code>code</code></div>
+                        <div><strong>```code block```</strong> → <pre>code block</pre></div>
+                        <div><strong>&lt;br&gt;</strong> → line break</div>
+                        <div><strong>Enter key</strong> → new paragraph</div>
+                    </div>
+                </div>
+            </div>
+
             <a href="/" class="btn btn-secondary">Back to List</a>
         </div>
     </div>
@@ -72,22 +101,6 @@
     </div>
 </div>
 
-<div class="export-controls">
-    <h3>Export Options</h3>
-    <div style="margin-bottom: 15px;">
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="export-html" checked> HTML
-        </label>
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="export-word"> Word Document
-        </label>
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="export-markdown"> Markdown
-        </label>
-    </div>
-    <button onclick="exportTutorial()" class="btn btn-success">Export Selected Formats</button>
-    <button onclick="previewTutorial()" class="btn btn-secondary">Preview Tutorial</button>
-</div>
 {% endblock %}
 
 {% block head %}

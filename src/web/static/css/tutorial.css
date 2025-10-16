@@ -41,6 +41,15 @@
     gap: 10px;
     flex-wrap: wrap;
     flex-shrink: 0;
+    align-items: center;
+}
+
+.tutorial-actions .btn {
+    height: 38px;
+    padding: 8px 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: nowrap;
 }
 
 /* Tutorial details section */
@@ -240,18 +249,81 @@
     flex-wrap: wrap;
 }
 
-/* Export controls */
-.export-controls {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-top: 20px;
+/* Export dropdown */
+.dropdown-container {
+    position: relative;
+    display: inline-block;
 }
 
-.export-controls label {
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    padding: 10px;
+    min-width: 160px;
+    z-index: 1000;
+    margin-top: 5px;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-menu label {
+    display: block;
+    margin-bottom: 6px;
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
+    font-size: 14px;
+}
+
+.dropdown-menu label:last-of-type {
+    margin-bottom: 8px;
+}
+
+.dropdown-menu label input[type="checkbox"] {
+    margin-right: 6px;
+}
+
+.dropdown-menu .btn {
+    font-size: 13px;
+    padding: 6px 12px;
+    height: auto;
+}
+
+/* Formatting dropdown */
+.formatting-dropdown {
+    left: 0 !important;
+    right: auto !important;
+    min-width: 280px;
+    max-width: 400px;
+}
+
+.formatting-dropdown h4 {
+    margin: 0 0 8px 0;
+    font-size: 0.95rem;
+    color: #333;
+    font-weight: 600;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 6px;
+}
+
+.formatting-examples {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    font-size: 0.85rem;
+}
+
+.formatting-examples div {
+    padding: 2px 0;
+    white-space: nowrap;
 }
 
 /* Change indicator */

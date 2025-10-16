@@ -347,3 +347,31 @@ if (tutorialConfig.steps && tutorialConfig.steps.length > 0) {
     });
     console.groupEnd();
 }
+
+// Toggle export dropdown menu
+function toggleExportDropdown() {
+    const dropdown = document.getElementById('export-dropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Toggle formatting dropdown menu
+function toggleFormattingDropdown() {
+    const dropdown = document.getElementById('formatting-dropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(event) {
+    const exportDropdown = document.getElementById('export-dropdown');
+    const formattingDropdown = document.getElementById('formatting-dropdown');
+    const dropdownContainer = event.target.closest('.dropdown-container');
+
+    if (!dropdownContainer) {
+        if (exportDropdown && exportDropdown.classList.contains('show')) {
+            exportDropdown.classList.remove('show');
+        }
+        if (formattingDropdown && formattingDropdown.classList.contains('show')) {
+            formattingDropdown.classList.remove('show');
+        }
+    }
+});

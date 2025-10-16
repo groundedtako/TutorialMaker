@@ -84,31 +84,34 @@ class TutorialWebServer:
             """Format step descriptions with markdown-like formatting"""
             if not text:
                 return ""
-            
+
             import re
             from markupsafe import Markup
-            
-            # Escape HTML first to prevent injection
+
+            # Escape HTML first to prevent injection (but preserve <br> tags)
             text = str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            
+
+            # Restore <br> tags that users explicitly typed
+            text = text.replace('&lt;br&gt;', '<br>').replace('&lt;br/&gt;', '<br>').replace('&lt;br /&gt;', '<br>')
+
             # Convert ```code blocks``` first (before single backticks)
             text = re.sub(r'```([^`]+?)```', r'<pre style="background: #f8f8f8; padding: 10px; border-radius: 5px; border-left: 4px solid #007bff; margin: 8px 0; overflow-x: auto;"><code style="font-family: monospace;">\1</code></pre>', text, flags=re.DOTALL)
-            
-            # Convert newlines to <br> tags
+
+            # Convert newlines to <br> tags (Enter key presses)
             text = text.replace('\n', '<br>')
-            
+
             # Convert **bold** to <strong>
             text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-            
+
             # Convert *italic* to <em>
             text = re.sub(r'\*([^*]+?)\*', r'<em>\1</em>', text)
-            
+
             # Convert `code` to <code>
             text = re.sub(r'`([^`]+?)`', r'<code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</code>', text)
-            
+
             # Preserve multiple spaces by converting them to non-breaking spaces
             text = re.sub(r'  +', lambda m: '&nbsp;' * len(m.group()), text)
-            
+
             return Markup(text)
     
     def _setup_routes(self):

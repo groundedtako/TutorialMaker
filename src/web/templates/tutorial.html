@@ -3,16 +3,11 @@
 {% block title %}{{ metadata.title }} - TutorialMaker{% endblock %}
 
 {% block content %}
-<div class="tutorial-header">
-    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px;">
-        <div>
-            <h2 id="tutorial-title" contenteditable="true" style="display: inline-block; min-width: 300px; padding: 5px; border-radius: 4px;">{{ metadata.title or 'Untitled Tutorial' }}</h2>
-            <div class="tutorial-meta">
-                <span><strong>Steps:</strong> <span id="step-count">{{ metadata.step_count }}</span></span>
-                <span><strong>Duration:</strong> {{ "%.1f"|format(metadata.duration or 0) }}s</span>
-                <span><strong>Status:</strong> {{ (metadata.status or 'unknown').title() }}</span>
-                <span><strong>Created:</strong> {{ (metadata.created_at or 0)|timestamp_to_date }}</span>
-            </div>
+<!-- Sticky Header with Action Buttons -->
+<div class="sticky-header">
+    <div class="tutorial-actions-bar">
+        <div class="tutorial-title-inline">
+            <h2 id="tutorial-title" contenteditable="true">{{ metadata.title or 'Untitled Tutorial' }}</h2>
         </div>
         <div class="tutorial-actions">
             <button onclick="saveTutorial()" class="btn btn-success">Save Changes</button>
@@ -20,8 +15,18 @@
             <a href="/" class="btn btn-secondary">Back to List</a>
         </div>
     </div>
-    
-    <div style="margin-bottom: 20px;">
+</div>
+
+<!-- Tutorial Details Section (scrolls normally) -->
+<div class="tutorial-details">
+    <div class="tutorial-meta">
+        <span><strong>Steps:</strong> <span id="step-count">{{ metadata.step_count }}</span></span>
+        <span><strong>Duration:</strong> {{ "%.1f"|format(metadata.duration or 0) }}s</span>
+        <span><strong>Status:</strong> {{ (metadata.status or 'unknown').title() }}</span>
+        <span><strong>Created:</strong> {{ (metadata.created_at or 0)|timestamp_to_date }}</span>
+    </div>
+
+    <div style="margin-top: 20px;">
         <label for="tutorial-description"><strong>Description:</strong></label>
         <textarea id="tutorial-description" style="width: 100%; min-height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-top: 5px;" placeholder="Add a description for this tutorial...">{{ metadata.description or '' }}</textarea>
     </div>
@@ -87,28 +92,65 @@
 
 {% block head %}
 <style>
-    .tutorial-header {
+    /* Sticky header for action buttons */
+    .sticky-header {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 100;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-bottom: 2px solid #007bff;
+        margin: -20px -20px 20px -20px; /* Extend to edges of container */
+        padding: 15px 20px;
+    }
+
+    .tutorial-actions-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .tutorial-title-inline h2 {
+        margin: 0;
+        font-size: 1.3rem;
+        padding: 5px 10px;
+        border-radius: 4px;
+        min-width: 200px;
+        display: inline-block;
+    }
+
+    .tutorial-title-inline h2:focus {
+        outline: none;
+        border: 1px solid #007bff;
+        background: rgba(0,123,255,0.05);
+    }
+
+    .tutorial-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+    }
+
+    /* Tutorial details section */
+    .tutorial-details {
         background: white;
         padding: 20px;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         margin-bottom: 20px;
     }
-    
+
     .tutorial-meta {
         color: #666;
         font-size: 0.9rem;
-        margin-top: 10px;
     }
-    
+
     .tutorial-meta span {
         margin-right: 20px;
-    }
-    
-    .tutorial-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
     }
     
     .tutorial-step {
@@ -303,13 +345,7 @@
         cursor: pointer;
         user-select: none;
     }
-    
-    #tutorial-title:focus {
-        outline: none;
-        border: 1px solid #007bff;
-        background: rgba(0,123,255,0.05);
-    }
-    
+
     .changed {
         background: rgba(255,193,7,0.1) !important;
         border-color: #ffc107 !important;
@@ -506,22 +542,50 @@ function setActionButtonsDisabled(disabled) {
     }
 }
 
+// Helper function to convert HTML from contenteditable to plain text with newlines
+function htmlToText(element) {
+    // Clone the element to avoid modifying the original
+    const clone = element.cloneNode(true);
+
+    // Replace <br> tags with newlines
+    clone.querySelectorAll('br').forEach(br => {
+        br.replaceWith('\n');
+    });
+
+    // Replace </div> with newlines (contenteditable creates divs for new lines in some browsers)
+    const html = clone.innerHTML;
+    const textWithNewlines = html
+        .replace(/<div>/gi, '\n')
+        .replace(/<\/div>/gi, '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/<[^>]+>/g, ''); // Remove remaining HTML tags
+
+    // Decode HTML entities
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = textWithNewlines;
+    return textarea.value;
+}
+
 async function saveTutorial() {
     // Disable buttons during save operation
     setActionButtonsDisabled(true);
-    
+
     try {
         const title = document.getElementById('tutorial-title').textContent.trim();
         const description = document.getElementById('tutorial-description').value.trim();
-        
+
         const steps = [];
         document.querySelectorAll('.tutorial-step:not(.deleted)').forEach(stepEl => {
             const stepId = stepEl.dataset.stepId;
             const descriptionEl = stepEl.querySelector('.step-description');
-            
+
+            // Convert HTML to text while preserving newlines
+            const descriptionText = htmlToText(descriptionEl);
+
             steps.push({
                 step_id: stepId,
-                description: descriptionEl.textContent.trim()
+                description: descriptionText.trim()
             });
         });
         

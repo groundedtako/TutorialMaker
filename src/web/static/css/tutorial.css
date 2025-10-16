@@ -3,9 +3,9 @@
 /* Sticky header for action buttons */
 .sticky-header {
     position: sticky;
-    top: 0;
+    top: 60px;  /* Position below the site header */
     background: white;
-    z-index: 100;
+    z-index: 999;  /* Just below the site header (which has z-index: 1000) */
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     border-bottom: 2px solid #007bff;
     margin: -20px -20px 20px -20px;

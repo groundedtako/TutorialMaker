@@ -161,6 +161,13 @@
 
 {% block head %}
 <style>
+    #recordingControls {
+        position: sticky;
+        top: 70px;  /* Below the site header */
+        z-index: 100;
+        margin-bottom: 20px;
+    }
+
     .status-recording { color: #dc3545; font-weight: bold; }
     .status-paused { color: #fd7e14; font-weight: bold; }
     .status-completed { color: #28a745; font-weight: bold; }
@@ -655,7 +662,15 @@ function closeMonitorModal() {
 // Update the recording UI based on current status
 async function updateRecordingUI() {
     try {
-        const response = await fetch('/api/recording/status');
+        // Add 2 second timeout to prevent page load hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+        const response = await fetch('/api/recording/status', {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         const status = await response.json();
         
         const noSessionControls = document.getElementById('noSessionControls');
@@ -705,10 +720,13 @@ async function updateRecordingUI() {
         }
         
     } catch (error) {
-        console.log('Recording status not available');
-        document.getElementById('noSessionControls').style.display = 'block';
-        document.getElementById('activeSessionControls').style.display = 'none';
-        document.getElementById('statusMessage').textContent = 'Recording controls not available';
+        console.log('Recording status not available:', error.name);
+        const noSessionControls = document.getElementById('noSessionControls');
+        const activeSessionControls = document.getElementById('activeSessionControls');
+        const statusMessage = document.getElementById('statusMessage');
+        if (noSessionControls) noSessionControls.style.display = 'block';
+        if (activeSessionControls) activeSessionControls.style.display = 'none';
+        if (statusMessage) statusMessage.textContent = 'Recording controls not available';
     }
 }
 
@@ -717,13 +735,13 @@ document.addEventListener('DOMContentLoaded', function() {
     updateRecordingUI();
     // Update recording UI every 2 seconds
     setInterval(updateRecordingUI, 500); // Poll every 500ms for better responsiveness
-    
-    // Load file info for all tutorials
-    loadAllFileInfo();
-    
+
+    // Use lazy loading for file info to improve page load speed
+    setupLazyFileInfoLoading();
+
     // Check if multiple monitors are available and show recommendation
     checkMonitorStatus();
-    
+
     // Close export menus when clicking outside
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.export-dropdown')) {
@@ -734,20 +752,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Check monitor status and show guidance
+// Check monitor status and show guidance (lightweight check only)
 async function checkMonitorStatus() {
-    try {
-        const response = await fetch('/api/recording/monitors');
-        const result = await response.json();
-        
-        if (result.success && result.monitors.length > 1) {
-            // Multiple monitors available
-            const selectedDiv = document.getElementById('selectedMonitor');
-            selectedDiv.innerHTML = `<span style="color: #fd7e14;">Multiple monitors detected - Please select one</span>`;
-        }
-    } catch (error) {
-        console.log('Could not check monitor status:', error);
-    }
+    // Don't load monitors on page load - it's too slow because it captures screenshots
+    // Monitors will be loaded when user clicks "Select Screen" button
+    console.log('Monitor selection available via "Select Screen" button');
 }
 
 // Tutorial title editing functions
@@ -802,10 +811,44 @@ async function saveTutorialTitle(tutorialId) {
     }
 }
 
-// Load file info for all tutorials
+// Setup lazy loading for file info using Intersection Observer
+function setupLazyFileInfoLoading() {
+    const tutorialCards = document.querySelectorAll('.tutorial-card');
+    const loadedCards = new Set();
+
+    // Use Intersection Observer for efficient lazy loading
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const card = entry.target;
+                const editLink = card.querySelector('a[href^="/tutorial/"]');
+                if (editLink) {
+                    const tutorialId = editLink.href.split('/').pop();
+
+                    // Load file info only once per card
+                    if (!loadedCards.has(tutorialId)) {
+                        loadedCards.add(tutorialId);
+                        loadTutorialFileInfo(tutorialId);
+                    }
+                }
+
+                // Stop observing this card after loading
+                observer.unobserve(card);
+            }
+        });
+    }, {
+        // Load when card is within 200px of viewport
+        rootMargin: '200px'
+    });
+
+    // Observe all tutorial cards
+    tutorialCards.forEach(card => observer.observe(card));
+}
+
+// Load file info for all tutorials (kept for compatibility)
 async function loadAllFileInfo() {
     const tutorialCards = document.querySelectorAll('.tutorial-card');
-    
+
     for (const card of tutorialCards) {
         const editLink = card.querySelector('a[href^="/tutorial/"]');
         if (editLink) {

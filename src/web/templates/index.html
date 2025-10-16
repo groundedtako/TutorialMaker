@@ -69,78 +69,20 @@
 
 <h2>Your Tutorials</h2>
 
-{% if not tutorials %}
-<div class="card">
-    <div class="card-body">
-        <h3>No tutorials found</h3>
-        <p>You haven't created any tutorials yet. Use the TutorialMaker application to record your first tutorial!</p>
-        <p><strong>To get started:</strong></p>
-        <ol>
-            <li>Run the main application: <code>python3 main.py</code></li>
-            <li>Create a new tutorial: <code>new "My Tutorial"</code></li>
-            <li>Start recording: <code>start</code></li>
-            <li>Perform your actions</li>
-            <li>Stop recording: <code>stop</code></li>
-            <li>Return here to edit and export your tutorial!</li>
-        </ol>
-    </div>
-</div>
-{% else %}
-<div class="tutorial-grid">
-    {% for tutorial in tutorials %}
-    <div class="tutorial-card">
-        <div class="tutorial-card-body">
-            <h3 class="tutorial-title">
-                <span id="title-display-{{ tutorial.tutorial_id }}" onclick="editTutorialTitle('{{ tutorial.tutorial_id }}', '{{ tutorial.title|e }}')">{{ tutorial.title }}</span>
-                <input type="text" id="title-edit-{{ tutorial.tutorial_id }}" value="{{ tutorial.title|e }}" style="display: none; width: 100%; font-size: inherit; font-weight: inherit; padding: 2px; border: 1px solid #ddd; border-radius: 3px;" onblur="saveTutorialTitle('{{ tutorial.tutorial_id }}')" onkeypress="if(event.key==='Enter') saveTutorialTitle('{{ tutorial.tutorial_id }}')">
-            </h3>
-            <div class="tutorial-meta">
-                <div><strong>Steps:</strong> {{ tutorial.step_count }}</div>
-                <div><strong>Duration:</strong> {{ "%.1f"|format(tutorial.duration) }}s</div>
-                <div><strong>Status:</strong> 
-                    <span class="status-{{ tutorial.status }}">{{ tutorial.status.title() }}</span>
-                </div>
-                <div><strong>Created:</strong> {{ tutorial.created_at|timestamp_to_date }}</div>
-            </div>
-            
-            <!-- File location info -->
-            <div id="file-info-{{ tutorial.tutorial_id }}" class="file-locations" style="margin-top: 10px; font-size: 0.9em; color: #666;">
-                Loading file info...
-            </div>
-            {% if tutorial.description %}
-            <p class="tutorial-description">{{ tutorial.description }}</p>
-            {% endif %}
-            <div class="tutorial-actions">
-                <a href="/tutorial/{{ tutorial.tutorial_id }}" class="btn">Edit Tutorial</a>
-                <div class="export-dropdown">
-                    <button class="btn btn-success dropdown-toggle" onclick="toggleExportMenu('{{ tutorial.tutorial_id }}')">
-                        Export ▼
-                    </button>
-                    <div id="export-menu-{{ tutorial.tutorial_id }}" class="export-menu" style="display: none;">
-                        <div class="export-format-selection">
-                            <div class="export-format-options">
-                                <label class="export-checkbox">
-                                    <input type="checkbox" id="export-html-{{ tutorial.tutorial_id }}" checked> HTML
-                                </label>
-                                <label class="export-checkbox">
-                                    <input type="checkbox" id="export-word-{{ tutorial.tutorial_id }}"> Word
-                                </label>
-                                <label class="export-checkbox">
-                                    <input type="checkbox" id="export-markdown-{{ tutorial.tutorial_id }}"> Markdown
-                                </label>
-                            </div>
-                            <button onclick="exportSelectedFormats('{{ tutorial.tutorial_id }}')" class="export-action-btn">Export Selected</button>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="deleteTutorial('{{ tutorial.tutorial_id }}')" class="btn btn-danger">Delete</button>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
+<div id="tutorials-loading" style="text-align: center; padding: 40px;">
+    <div style="font-size: 18px; color: #666;">Loading tutorials...</div>
 </div>
 
-<div class="card" style="margin-top: 30px;">
+<div id="tutorials-empty" class="card" style="display: none;">
+    <div class="card-body">
+        <h3>No tutorials found</h3>
+        <p>You haven't created any tutorials yet. Use the recording controls above to create your first tutorial!</p>
+    </div>
+</div>
+
+</div>
+
+<div class="card" id="bulk-actions" style="margin-top: 30px; display: none;">
     <div class="card-header">
         Bulk Actions
     </div>
@@ -156,7 +98,6 @@
         <button onclick="refreshTutorials()" class="btn btn-secondary">Refresh List</button>
     </div>
 </div>
-{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -337,6 +278,90 @@
 {% endblock %}
 
 {% block scripts %}
+// Load tutorials dynamically via AJAX
+async function loadTutorials() {
+    try {
+        const response = await fetch('/api/tutorials/lite');
+        const tutorials = await response.json();
+
+        const loadingDiv = document.getElementById('tutorials-loading');
+        const emptyDiv = document.getElementById('tutorials-empty');
+        const container = document.getElementById('tutorials-container');
+        const bulkActions = document.getElementById('bulk-actions');
+
+        loadingDiv.style.display = 'none';
+
+        if (tutorials.length === 0) {
+            emptyDiv.style.display = 'block';
+            bulkActions.style.display = 'none';
+            return;
+        }
+
+        // Show bulk actions
+        bulkActions.style.display = 'block';
+
+        // Render tutorials
+        tutorials.forEach(tutorial => {
+            const card = createTutorialCard(tutorial);
+            container.appendChild(card);
+        });
+
+    } catch (error) {
+        console.error('Failed to load tutorials:', error);
+        document.getElementById('tutorials-loading').innerHTML =
+            '<div style="color: #dc3545;">Failed to load tutorials. Please refresh the page.</div>';
+    }
+}
+
+function createTutorialCard(tutorial) {
+    const card = document.createElement('div');
+    card.className = 'tutorial-card';
+    card.innerHTML = `
+        <div class="tutorial-card-body">
+            <h3 class="tutorial-title">
+                <span id="title-display-${tutorial.tutorial_id}" onclick="editTutorialTitle('${tutorial.tutorial_id}', '${escapeHtml(tutorial.title)}')">${escapeHtml(tutorial.title)}</span>
+                <input type="text" id="title-edit-${tutorial.tutorial_id}" value="${escapeHtml(tutorial.title)}" style="display: none; width: 100%; font-size: inherit; font-weight: inherit; padding: 2px; border: 1px solid #ddd; border-radius: 3px;" onblur="saveTutorialTitle('${tutorial.tutorial_id}')" onkeypress="if(event.key==='Enter') saveTutorialTitle('${tutorial.tutorial_id}')">
+            </h3>
+            <div class="tutorial-meta">
+                <div><strong>Steps:</strong> ${tutorial.step_count}</div>
+                <div><strong>Created:</strong> ${new Date(tutorial.created_at * 1000).toLocaleDateString()}</div>
+            </div>
+            <div class="tutorial-actions">
+                <a href="/tutorial/${tutorial.tutorial_id}" class="btn">Edit Tutorial</a>
+                <div class="export-dropdown">
+                    <button class="btn btn-success dropdown-toggle" onclick="toggleExportMenu('${tutorial.tutorial_id}')">
+                        Export ▼
+                    </button>
+                    <div id="export-menu-${tutorial.tutorial_id}" class="export-menu" style="display: none;">
+                        <div class="export-format-selection">
+                            <div class="export-format-options">
+                                <label class="export-checkbox">
+                                    <input type="checkbox" id="export-html-${tutorial.tutorial_id}" checked> HTML
+                                </label>
+                                <label class="export-checkbox">
+                                    <input type="checkbox" id="export-word-${tutorial.tutorial_id}"> Word
+                                </label>
+                                <label class="export-checkbox">
+                                    <input type="checkbox" id="export-markdown-${tutorial.tutorial_id}"> Markdown
+                                </label>
+                            </div>
+                            <button onclick="exportSelectedFormats('${tutorial.tutorial_id}')" class="export-action-btn">Export Selected</button>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="deleteTutorial('${tutorial.tutorial_id}')" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    `;
+    return card;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Recording control functions
 async function createNewRecording() {
     const titleInput = document.getElementById('tutorialTitle');
@@ -714,16 +739,16 @@ async function updateRecordingUI() {
 
 // Initialize recording UI when page loads
 document.addEventListener('DOMContentLoaded', function() {
+    // Load tutorials first
+    loadTutorials();
+
     updateRecordingUI();
     // Update recording UI every 2 seconds
     setInterval(updateRecordingUI, 500); // Poll every 500ms for better responsiveness
-    
-    // Load file info for all tutorials
-    loadAllFileInfo();
-    
+
     // Check if multiple monitors are available and show recommendation
     checkMonitorStatus();
-    
+
     // Close export menus when clicking outside
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.export-dropdown')) {
@@ -802,73 +827,6 @@ async function saveTutorialTitle(tutorialId) {
     }
 }
 
-// Load file info for all tutorials
-async function loadAllFileInfo() {
-    const tutorialCards = document.querySelectorAll('.tutorial-card');
-    
-    for (const card of tutorialCards) {
-        const editLink = card.querySelector('a[href^="/tutorial/"]');
-        if (editLink) {
-            const tutorialId = editLink.href.split('/').pop();
-            await loadTutorialFileInfo(tutorialId);
-        }
-    }
-}
-
-async function loadTutorialFileInfo(tutorialId) {
-    try {
-        const response = await fetch(`/api/tutorial/${tutorialId}/files`);
-        const fileInfo = await response.json();
-        
-        const fileInfoDiv = document.getElementById(`file-info-${tutorialId}`);
-        if (!fileInfoDiv) return;
-        
-        if (!fileInfo.exists) {
-            fileInfoDiv.innerHTML = '<span class="text-muted">No files found</span>';
-            return;
-        }
-        
-        let html = `
-            <div><strong>📁 Location:</strong> 
-                <code class="clickable-path" onclick="openFileLocation('${tutorialId}', 'project')" 
-                      title="Click to open in file manager">
-                    ${fileInfo.project_path_display}
-                </code>
-            </div>
-        `;
-        
-        if (fileInfo.files && Object.keys(fileInfo.files).length > 0) {
-            html += '<div style="margin-top: 5px;"><strong>📄 Exports:</strong> ';
-            
-            const exportedFiles = [];
-            for (const [format, data] of Object.entries(fileInfo.files)) {
-                if (data.exists) {
-                    const sizeInfo = data.size_mb > 0 ? ` (${data.size_mb.toFixed(1)}MB)` : '';
-                    exportedFiles.push(`<a href="#" onclick="openFileLocation('${tutorialId}', '${format}')" title="Click to open file location" style="color: #28a745; text-decoration: none;">${format.toUpperCase()}${sizeInfo}</a>`);
-                }
-            }
-            
-            if (exportedFiles.length > 0) {
-                html += exportedFiles.join(', ');
-            } else {
-                html += '<span style="color: #999;">None exported yet</span>';
-            }
-            html += '</div>';
-        }
-        
-        if (fileInfo.screenshot_count > 0) {
-            html += `<div style="margin-top: 3px;"><small style="color: #666;">📷 ${fileInfo.screenshot_count} screenshots</small></div>`;
-        }
-        
-        fileInfoDiv.innerHTML = html;
-    } catch (error) {
-        console.log(`Failed to load file info for ${tutorialId}:`, error);
-        const fileInfoDiv = document.getElementById(`file-info-${tutorialId}`);
-        if (fileInfoDiv) {
-            fileInfoDiv.innerHTML = '<span class="text-muted">File info unavailable</span>';
-        }
-    }
-}
 
 // Export dropdown functions
 function toggleExportMenu(tutorialId) {

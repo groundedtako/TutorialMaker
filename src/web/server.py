@@ -119,9 +119,8 @@ class TutorialWebServer:
         
         @self.app.route('/')
         def index():
-            """Main page - list all tutorials"""
-            tutorials = self.storage.list_tutorials()
-            return render_template('index.html', tutorials=tutorials)
+            """Main page - list all tutorials (minimal load for fast initial render)"""
+            return render_template('index.html')
         
         @self.app.route('/tutorial/<tutorial_id>')
         def view_tutorial(tutorial_id: str):
@@ -140,9 +139,15 @@ class TutorialWebServer:
             except Exception as e:
                 return handle_tutorial_error(tutorial_id, e)
         
+        @self.app.route('/api/tutorials/lite')
+        def api_list_tutorials_lite():
+            """API: List all tutorials (lightweight, no full metadata)"""
+            tutorials = self.storage.list_tutorials_lite()
+            return jsonify(tutorials)
+
         @self.app.route('/api/tutorials')
         def api_list_tutorials():
-            """API: List all tutorials"""
+            """API: List all tutorials (full metadata)"""
             tutorials = self.storage.list_tutorials()
             return jsonify([{
                 'tutorial_id': t.tutorial_id,

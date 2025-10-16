@@ -286,10 +286,40 @@ class TutorialStorage:
             self.logger.error(f"Error saving screenshot: {e}")
             return None
     
-    def list_tutorials(self) -> List[TutorialMetadata]:
-        """List all available tutorials"""
+    def list_tutorials_lite(self) -> List[Dict[str, Any]]:
+        """List all tutorials with minimal data (for fast loading)"""
         tutorials = []
-        
+
+        try:
+            for project_dir in self.projects_path.iterdir():
+                if project_dir.is_dir():
+                    metadata_file = project_dir / "metadata.json"
+                    if metadata_file.exists():
+                        try:
+                            with open(metadata_file, 'r') as f:
+                                metadata_data = json.load(f)
+                            # Only include essential fields for listing
+                            tutorials.append({
+                                'tutorial_id': metadata_data.get('tutorial_id'),
+                                'title': metadata_data.get('title', 'Untitled'),
+                                'created_at': metadata_data.get('created_at', 0),
+                                'step_count': metadata_data.get('step_count', 0)
+                            })
+                        except Exception as e:
+                            self.logger.warning(f"Error loading metadata for {project_dir}: {e}")
+
+            # Sort by creation date (newest first)
+            tutorials.sort(key=lambda x: x['created_at'], reverse=True)
+
+        except Exception as e:
+            self.logger.error(f"Error listing tutorials: {e}")
+
+        return tutorials
+
+    def list_tutorials(self) -> List[TutorialMetadata]:
+        """List all available tutorials (full metadata)"""
+        tutorials = []
+
         try:
             for project_dir in self.projects_path.iterdir():
                 if project_dir.is_dir():
@@ -302,13 +332,13 @@ class TutorialStorage:
                             tutorials.append(metadata)
                         except Exception as e:
                             self.logger.warning(f"Error loading metadata for {project_dir}: {e}")
-            
+
             # Sort by creation date (newest first)
             tutorials.sort(key=lambda x: x.created_at, reverse=True)
-            
+
         except Exception as e:
             self.logger.error(f"Error listing tutorials: {e}")
-        
+
         return tutorials
     
     def delete_tutorial(self, tutorial_id: str) -> bool:

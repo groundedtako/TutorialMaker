@@ -61,16 +61,16 @@ def load_and_validate_tutorial(storage, tutorial_id: str) -> Tuple[Optional[Tuto
 def render_tutorial_page(metadata: TutorialMetadata, steps: List[TutorialStep], tutorial_id: str) -> str:
     """
     Render the tutorial page template
-    
+
     Args:
         metadata: Tutorial metadata
         steps: List of tutorial steps
         tutorial_id: Tutorial ID
-        
+
     Returns:
         Rendered HTML string
     """
-    # Convert steps to display format
+    # Convert steps to display format as simple dictionaries (JSON-serializable)
     display_steps = []
     for step in steps:
         # Handle potential missing attributes gracefully
@@ -83,10 +83,11 @@ def render_tutorial_page(metadata: TutorialMetadata, steps: List[TutorialStep], 
             'coordinates_pct': getattr(step, 'coordinates_pct', None),
             'ocr_text': getattr(step, 'ocr_text', ''),
             'ocr_confidence': getattr(step, 'ocr_confidence', 0),
-            'timestamp': getattr(step, 'timestamp', 0)
+            'timestamp': getattr(step, 'timestamp', 0),
+            'step_type': getattr(step, 'step_type', 'click')
         }
-        display_steps.append(type('Step', (), step_data))
-    
+        display_steps.append(step_data)
+
     return render_template(
         'tutorial.html',
         metadata=metadata,

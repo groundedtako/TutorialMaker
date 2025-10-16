@@ -11,7 +11,29 @@
         </div>
         <div class="tutorial-actions">
             <button onclick="saveTutorial()" class="btn btn-success">Save Changes</button>
-            <button onclick="exportTutorial()" class="btn">Export</button>
+
+            <!-- Export dropdown with format selection -->
+            <div class="export-dropdown-inline">
+                <button class="btn btn-primary dropdown-toggle" onclick="toggleExportDropdown(event)">
+                    Export Selected ▼
+                </button>
+                <div id="export-dropdown" class="export-menu-inline" style="display: none;">
+                    <div class="export-format-selection">
+                        <label class="export-checkbox">
+                            <input type="checkbox" id="export-html" checked> HTML
+                        </label>
+                        <label class="export-checkbox">
+                            <input type="checkbox" id="export-word"> Word
+                        </label>
+                        <label class="export-checkbox">
+                            <input type="checkbox" id="export-markdown"> Markdown
+                        </label>
+                    </div>
+                    <button onclick="exportTutorial()" class="btn btn-success export-action-btn">Export</button>
+                </div>
+            </div>
+
+            <button onclick="previewTutorial()" class="btn btn-secondary">Preview</button>
             <a href="/" class="btn btn-secondary">Back to List</a>
         </div>
     </div>
@@ -95,23 +117,6 @@
         {% endfor %}
     </div>
 </div>
-
-<div class="export-controls">
-    <h3>Export Options</h3>
-    <div style="margin-bottom: 15px;">
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="export-html" checked> HTML
-        </label>
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="export-word"> Word Document
-        </label>
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="export-markdown"> Markdown
-        </label>
-    </div>
-    <button onclick="exportTutorial()" class="btn btn-success">Export Selected Formats</button>
-    <button onclick="previewTutorial()" class="btn btn-secondary">Preview Tutorial</button>
-</div>
 {% endblock %}
 
 {% block head %}
@@ -157,6 +162,55 @@
         gap: 10px;
         flex-wrap: wrap;
         flex-shrink: 0;
+        align-items: center;
+    }
+
+    /* Export dropdown in sticky header */
+    .export-dropdown-inline {
+        position: relative;
+        display: inline-block;
+    }
+
+    .export-menu-inline {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 5px;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        min-width: 200px;
+        padding: 12px;
+    }
+
+    .export-format-selection {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .export-checkbox {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 4px 0;
+    }
+
+    .export-checkbox input {
+        margin-right: 8px;
+        cursor: pointer;
+    }
+
+    .export-action-btn {
+        width: 100%;
+        margin-top: 8px;
+    }
+
+    .dropdown-toggle::after {
+        display: none; /* Hide default Bootstrap arrow if any */
     }
 
     /* Formatting Help Section */
@@ -432,19 +486,6 @@
         gap: 15px;
         flex-wrap: wrap;
     }
-    
-    .export-controls {
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-top: 20px;
-    }
-    
-    .export-controls label {
-        cursor: pointer;
-        user-select: none;
-    }
 
     .changed {
         background: rgba(255,193,7,0.1) !important;
@@ -585,6 +626,26 @@ function toggleFormattingHelp() {
         helpContent.style.display = 'none';
     }
 }
+
+function toggleExportDropdown(event) {
+    event.stopPropagation();
+    const dropdown = document.getElementById('export-dropdown');
+    if (dropdown.style.display === 'none') {
+        dropdown.style.display = 'block';
+    } else {
+        dropdown.style.display = 'none';
+    }
+}
+
+// Close export dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('export-dropdown');
+    const exportButton = document.querySelector('.export-dropdown-inline');
+
+    if (dropdown && exportButton && !exportButton.contains(event.target)) {
+        dropdown.style.display = 'none';
+    }
+});
 
 async function deleteStep(stepId) {
     if (!confirm('Are you sure you want to delete this step?')) {

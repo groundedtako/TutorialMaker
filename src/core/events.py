@@ -93,6 +93,9 @@ class EventMonitor:
         # Manual capture hotkey settings
         self.manual_capture_hotkey: Optional[str] = None
         self.manual_capture_enabled: bool = False
+        # Manual-only mode toggle hotkey
+        self.manual_only_mode_hotkey: str = '`'
+        self.manual_only_mode_callback: Optional[Callable] = None
         # Text input tracking
         self.current_text_session = []
         self.last_key_time = 0
@@ -185,7 +188,11 @@ class EventMonitor:
     def set_manual_capture_callback(self, callback: Callable[[ManualCaptureEvent], None]):
         """Set callback for manual capture events"""
         self.manual_capture_callback = callback
-    
+
+    def set_manual_only_mode_callback(self, callback: Callable[[], None]):
+        """Set callback for manual-only mode toggle"""
+        self.manual_only_mode_callback = callback
+
     def set_manual_capture_hotkey(self, hotkey: str):
         """Set the hotkey for manual capture"""
         self.manual_capture_hotkey = hotkey
@@ -382,16 +389,26 @@ class EventMonitor:
         
         # Convert key to string and determine if it's special
         key_str, is_special, key_code = self._process_key(key)
-        
-        # Check for manual capture hotkey FIRST (before creating KeyPressEvent)
-        if (self.manual_capture_enabled and 
-            self.manual_capture_hotkey and 
+
+        # Check for manual-only mode toggle hotkey FIRST
+        if key_str == self.manual_only_mode_hotkey:
+            self.logger.debug(f"Manual-only mode toggle hotkey '{key_str}' detected!")
+            if self.manual_only_mode_callback:
+                try:
+                    self.manual_only_mode_callback()
+                except Exception as e:
+                    self.logger.error(f"Error in manual-only mode callback: {e}")
+            return  # Don't process this as a regular key event
+
+        # Check for manual capture hotkey (before creating KeyPressEvent)
+        if (self.manual_capture_enabled and
+            self.manual_capture_hotkey and
             key_str == self.manual_capture_hotkey):
             self.logger.debug(f"Manual capture hotkey '{key_str}' detected!")
-            
+
             # Log hotkey detection if we have access to a session logger
             # (We'll need to find a way to pass the logger to EventMonitor)
-            
+
             self.trigger_manual_capture()
             return  # Don't process this as a regular key event
         

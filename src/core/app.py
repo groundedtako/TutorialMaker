@@ -70,6 +70,7 @@ class TutorialMakerApp:
         self.event_monitor.set_mouse_callback(self._on_mouse_click)
         self.event_monitor.set_keyboard_callback(self._on_keyboard_event)
         self.event_monitor.set_manual_capture_callback(self._on_manual_capture)
+        self.event_monitor.set_manual_only_mode_callback(self._on_toggle_manual_only_mode)
         
         # Global hotkey manager for manual capture (optional)
         self.hotkey_manager = None
@@ -338,9 +339,15 @@ class TutorialMakerApp:
         # Check if we have an active recording session
         if not self.session_manager.has_active_session():
             return
-        
+
         session = self.session_manager.current_session
         if not session or not session.is_recording():
+            return
+
+        # Check if manual-only mode is enabled - if so, ignore all mouse clicks
+        if session.manual_only_mode:
+            if self.debug_mode:
+                self.logger.debug(f"Ignoring click at ({event.x}, {event.y}) - manual-only mode enabled")
             return
         
         # Check if event is on the selected monitor (ignore events on other monitors)
@@ -482,6 +489,27 @@ class TutorialMakerApp:
         if self.debug_mode:
             self.logger.debug(f"Queued manual capture at ({event.x}, {event.y}) - Step {step_count}")
     
+    def _on_toggle_manual_only_mode(self):
+        """Toggle manual-only mode on/off"""
+        if not self.session_manager.has_active_session():
+            self.logger.warning("Manual-only mode toggle: No active recording session")
+            return
+
+        session = self.session_manager.current_session
+        if not session:
+            return
+
+        # Toggle the mode
+        session.manual_only_mode = not session.manual_only_mode
+
+        status = "enabled" if session.manual_only_mode else "disabled"
+        self.logger.info(f"Manual-only mode {status}")
+
+        # Notify UI callbacks for synchronization with GUI checkbox
+        self._notify_ui_callbacks('manual_only_mode_changed', {
+            'manual_only_mode': session.manual_only_mode
+        })
+
     def trigger_manual_capture(self):
         """Public method to trigger manual capture via hotkey or UI"""
         self.event_monitor.trigger_manual_capture()

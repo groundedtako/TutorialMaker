@@ -126,16 +126,29 @@ class RecordingControlWindow:
         # Keystroke filtering toggle
         filter_frame = ttk.Frame(main_frame)
         filter_frame.pack(fill=tk.X, pady=(8, 0))
-        
+
         self.keystroke_filter_var = tk.BooleanVar()
         self.keystroke_filter_check = ttk.Checkbutton(
-            filter_frame, 
+            filter_frame,
             text="Filter keystrokes (clicks only)",
             variable=self.keystroke_filter_var,
             command=self._toggle_keystroke_filtering
         )
         self.keystroke_filter_check.pack(side=tk.LEFT)
-        
+
+        # Manual-only mode toggle
+        manual_frame = ttk.Frame(main_frame)
+        manual_frame.pack(fill=tk.X, pady=(4, 0))
+
+        self.manual_only_mode_var = tk.BooleanVar()
+        self.manual_only_mode_check = ttk.Checkbutton(
+            manual_frame,
+            text="Manual-only mode (= key only)",
+            variable=self.manual_only_mode_var,
+            command=self._toggle_manual_only_mode
+        )
+        self.manual_only_mode_check.pack(side=tk.LEFT)
+
         # Removed minimize button - users can move the panel or use system tray instead
     
     def _auto_size_window(self):
@@ -302,14 +315,36 @@ class RecordingControlWindow:
             enabled = self.app.toggle_keystroke_filtering()
             status = "enabled" if enabled else "disabled"
             print(f"Keystroke filtering {status}")
-            
+
             # Update checkbox to reflect actual state
             self.keystroke_filter_var.set(enabled)
-            
+
         except Exception as e:
             print(f"Failed to toggle keystroke filtering: {e}")
             # Revert checkbox state on error
             self.keystroke_filter_var.set(not self.keystroke_filter_var.get())
+
+    def _toggle_manual_only_mode(self):
+        """Toggle manual-only mode on/off"""
+        try:
+            # Call the app's toggle method
+            if hasattr(self.app, '_on_toggle_manual_only_mode'):
+                self.app._on_toggle_manual_only_mode()
+
+                # Get actual state from session
+                status = self.app.get_current_session_status()
+                manual_only_mode = status.get('manual_only_mode', False)
+
+                # Update checkbox to reflect actual state
+                self.manual_only_mode_var.set(manual_only_mode)
+
+                status_text = "enabled" if manual_only_mode else "disabled"
+                print(f"Manual-only mode {status_text}")
+
+        except Exception as e:
+            print(f"Failed to toggle manual-only mode: {e}")
+            # Revert checkbox state on error
+            self.manual_only_mode_var.set(not self.manual_only_mode_var.get())
     
     def _start_updates(self):
         """Start periodic updates of recording stats"""
@@ -321,25 +356,25 @@ class RecordingControlWindow:
         """Update recording statistics"""
         try:
             status = self.app.get_current_session_status()
-            
+
             if status.get('status') != 'no_session':
                 # Update step count
                 step_count = status.get('step_count', 0)
                 self.step_count_var.set(str(step_count))
-                
+
                 # Update duration
                 duration = status.get('duration', 0)
                 minutes = int(duration // 60)
                 seconds = int(duration % 60)
                 self.duration_var.set(f"{minutes:02d}:{seconds:02d}")
-                
+
                 # Update tutorial name
                 tutorial_title = status.get('title', 'No Tutorial')
                 # Truncate long titles
                 if len(tutorial_title) > 25:
                     tutorial_title = tutorial_title[:22] + "..."
                 self.tutorial_name_var.set(tutorial_title)
-                
+
                 # Update status
                 session_status = status.get('status', 'stopped')
                 if session_status == 'recording':
@@ -348,6 +383,12 @@ class RecordingControlWindow:
                 elif session_status == 'paused':
                     self.status_var.set("Paused")
                     self._draw_indicator(recording=False)
+
+                # Update manual-only mode checkbox state (sync with hotkey toggles)
+                manual_only_mode = status.get('manual_only_mode', False)
+                if self.manual_only_mode_var.get() != manual_only_mode:
+                    self.manual_only_mode_var.set(manual_only_mode)
+
         except Exception as e:
             print(f"Error updating stats: {e}")
     

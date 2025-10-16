@@ -21,11 +21,12 @@ class MainWindow:
         self.app = app
         self.root = tk.Tk()
         self.recording_window: Optional['RecordingControlWindow'] = None
-        
+        self.recording_ui_sync_timer: Optional[str] = None
+
         self._setup_window()
         self._create_widgets()
         self._setup_bindings()
-        
+
         # Register for UI state change notifications
         self.app.register_ui_callback(self._on_recording_state_changed)
         
@@ -138,6 +139,15 @@ class MainWindow:
             command=self._toggle_keystroke_filtering
         )
         self.keystroke_filter_check.pack(side=tk.LEFT, padx=(0, 15))
+
+        self.manual_only_mode_var = tk.BooleanVar()
+        self.manual_only_mode_check = ttk.Checkbutton(
+            options_frame,
+            text="Manual-only mode (= key only)",
+            variable=self.manual_only_mode_var,
+            command=self._toggle_manual_only_mode
+        )
+        self.manual_only_mode_check.pack(side=tk.LEFT, padx=(0, 15))
 
         self.debug_mode_var = tk.BooleanVar(value=self.app.debug_mode)
         self.debug_mode_check = ttk.Checkbutton(
@@ -291,11 +301,21 @@ class MainWindow:
         try:
             success = self.app.start_recording()
             if success:
+                # Apply manual-only mode setting if checkbox is checked
+                if self.manual_only_mode_var.get() and self.app.session_manager.has_active_session():
+                    session = self.app.session_manager.current_session
+                    if session:
+                        session.manual_only_mode = True
+                        print("Manual-only mode enabled for this recording")
+
                 self.status_var.set("🔴 Recording...")
                 self.start_btn.config(state='disabled')
                 self.stop_btn.config(state='normal')
                 self.new_btn.config(state='disabled')
-                
+
+                # Start periodic UI sync during recording
+                self._start_recording_ui_sync()
+
                 # Show recording control window
                 self._show_recording_controls()
             else:
@@ -340,6 +360,9 @@ class MainWindow:
         self.stop_btn.config(state='disabled')
         self.new_btn.config(state='normal')
         self.tutorial_name_var.set("")
+
+        # Stop UI sync timer
+        self._stop_recording_ui_sync()
     
     def _toggle_keystroke_filtering(self):
         """Toggle keystroke filtering on/off"""
@@ -356,6 +379,36 @@ class MainWindow:
             # Revert checkbox state on error
             self.keystroke_filter_var.set(not self.keystroke_filter_var.get())
 
+    def _toggle_manual_only_mode(self):
+        """Toggle manual-only mode on/off"""
+        try:
+            # Check if there's an active recording session
+            if self.app.session_manager.has_active_session():
+                # During recording: toggle via app method
+                if hasattr(self.app, '_on_toggle_manual_only_mode'):
+                    self.app._on_toggle_manual_only_mode()
+
+                    # Get actual state from session
+                    status = self.app.get_current_session_status()
+                    manual_only_mode = status.get('manual_only_mode', False)
+
+                    # Update checkbox to reflect actual state
+                    self.manual_only_mode_var.set(manual_only_mode)
+
+                    status_text = "enabled" if manual_only_mode else "disabled"
+                    print(f"Manual-only mode {status_text}")
+            else:
+                # Before recording: just toggle the checkbox state
+                # The setting will be applied when recording starts
+                enabled = self.manual_only_mode_var.get()
+                status_text = "enabled" if enabled else "disabled"
+                print(f"Manual-only mode {status_text} (will apply when recording starts)")
+
+        except Exception as e:
+            print(f"Failed to toggle manual-only mode: {e}")
+            # Revert checkbox state on error
+            self.manual_only_mode_var.set(not self.manual_only_mode_var.get())
+
     def _toggle_debug_mode(self):
         """Toggle debug mode (verbose logging) on/off in real-time"""
         try:
@@ -371,6 +424,32 @@ class MainWindow:
             # Revert checkbox state on error
             self.debug_mode_var.set(not self.debug_mode_var.get())
     
+    def _start_recording_ui_sync(self):
+        """Start periodic UI sync during recording"""
+        self._sync_recording_ui()
+
+    def _sync_recording_ui(self):
+        """Sync UI elements with current recording state"""
+        try:
+            if self.app.session_manager.has_active_session():
+                status = self.app.get_current_session_status()
+                manual_only_mode = status.get('manual_only_mode', False)
+
+                # Update checkbox if state changed (without triggering callback)
+                if self.manual_only_mode_var.get() != manual_only_mode:
+                    self.manual_only_mode_var.set(manual_only_mode)
+
+                # Schedule next sync
+                self.recording_ui_sync_timer = self.root.after(1000, self._sync_recording_ui)
+        except Exception as e:
+            print(f"Error syncing recording UI: {e}")
+
+    def _stop_recording_ui_sync(self):
+        """Stop periodic UI sync"""
+        if self.recording_ui_sync_timer:
+            self.root.after_cancel(self.recording_ui_sync_timer)
+            self.recording_ui_sync_timer = None
+
     def _show_recording_controls(self):
         """Show floating recording control window"""
         try:

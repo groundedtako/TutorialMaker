@@ -24,8 +24,8 @@ class SessionState(Enum):
 
 class RecordingSession:
     """Manages a single recording session"""
-    
-    def __init__(self, tutorial_id: str, title: str = "", selected_monitor: Optional[int] = None, 
+
+    def __init__(self, tutorial_id: str, title: str = "", selected_monitor: Optional[int] = None,
                  logger: Optional[SessionLogger] = None):
         self.tutorial_id = tutorial_id
         self.title = title
@@ -37,6 +37,8 @@ class RecordingSession:
         self.last_event_time = 0.0
         self.selected_monitor = selected_monitor  # Monitor to record on
         self.logger = logger  # Session logger for detailed logging
+        self.manual_only_mode = False  # If True, only manual captures are accepted
+        self.filter_keystrokes = False  # If True, keystrokes are filtered out
     
     @property
     def monitor_id(self) -> Optional[int]:
@@ -342,7 +344,7 @@ class SessionManager:
                 'status': 'no_session',
                 'debug_mode': self.debug_mode
             }
-        
+
         return {
             'status': self.current_session.status.value,
             'title': self.current_session.title,
@@ -350,6 +352,8 @@ class SessionManager:
             'duration': self.current_session.get_duration(),
             'step_count': self.current_session.step_counter,
             'is_recording': self.current_session.is_recording(),
+            'manual_only_mode': self.current_session.manual_only_mode,
+            'filter_keystrokes': self.current_session.filter_keystrokes,
             'debug_mode': self.debug_mode
         }
     

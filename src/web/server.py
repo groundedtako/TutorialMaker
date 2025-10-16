@@ -575,6 +575,32 @@ class TutorialWebServer:
                     return jsonify({'error': 'App not available'}), 500
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/recording/toggle-manual-only-mode', methods=['POST'])
+        def api_toggle_manual_only_mode():
+            """API: Toggle manual-only mode on/off"""
+            try:
+                if not self.app_instance:
+                    return jsonify({'error': 'App not available'}), 500
+
+                # Check if there's an active recording session
+                if not self.app_instance.session_manager.has_active_session():
+                    return jsonify({'error': 'No active recording session'}), 400
+
+                # Toggle the mode
+                self.app_instance._on_toggle_manual_only_mode()
+
+                # Get updated status
+                status = self.app_instance.get_current_session_status()
+                manual_only_mode = status.get('manual_only_mode', False)
+
+                return jsonify({
+                    'success': True,
+                    'manual_only_mode': manual_only_mode
+                })
+
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/recording/manual-capture', methods=['POST'])
         def api_manual_capture():

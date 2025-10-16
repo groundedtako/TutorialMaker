@@ -15,6 +15,30 @@
             <a href="/" class="btn btn-secondary">Back to List</a>
         </div>
     </div>
+    <div class="formatting-help">
+        <button class="help-toggle" onclick="toggleFormattingHelp()">
+            <span id="help-icon">?</span> Formatting Help
+        </button>
+        <div id="formatting-help-content" class="help-content" style="display: none;">
+            <div class="help-grid">
+                <div class="help-item">
+                    <strong>Bold:</strong> <code>**text**</code>
+                </div>
+                <div class="help-item">
+                    <strong>Italic:</strong> <code>*text*</code>
+                </div>
+                <div class="help-item">
+                    <strong>Code:</strong> <code>`code`</code>
+                </div>
+                <div class="help-item">
+                    <strong>Code Block:</strong> <code>```code```</code>
+                </div>
+                <div class="help-item">
+                    <strong>Line Break:</strong> Press <kbd>Enter</kbd> or type <code>&lt;br&gt;</code>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Tutorial Details Section (scrolls normally) -->
@@ -133,6 +157,82 @@
         gap: 10px;
         flex-wrap: wrap;
         flex-shrink: 0;
+    }
+
+    /* Formatting Help Section */
+    .formatting-help {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .help-toggle {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        color: #495057;
+        transition: all 0.2s;
+    }
+
+    .help-toggle:hover {
+        background: #e9ecef;
+        border-color: #007bff;
+        color: #007bff;
+    }
+
+    #help-icon {
+        display: inline-block;
+        background: #007bff;
+        color: white;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 18px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-right: 5px;
+    }
+
+    .help-content {
+        margin-top: 10px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+    }
+
+    .help-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .help-item {
+        font-size: 0.85rem;
+        color: #495057;
+    }
+
+    .help-item code {
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #d63384;
+    }
+
+    .help-item kbd {
+        background: #fff;
+        border: 1px solid #adb5bd;
+        border-radius: 3px;
+        padding: 2px 6px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85em;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
 
     /* Tutorial details section */
@@ -475,6 +575,15 @@ function markChanged() {
 
 function toggleScreenshotSize(img) {
     img.classList.toggle('fullsize');
+}
+
+function toggleFormattingHelp() {
+    const helpContent = document.getElementById('formatting-help-content');
+    if (helpContent.style.display === 'none') {
+        helpContent.style.display = 'block';
+    } else {
+        helpContent.style.display = 'none';
+    }
 }
 
 async function deleteStep(stepId) {

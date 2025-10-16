@@ -379,19 +379,31 @@
 let hasChanges = false;
 let originalData = {};
 
-// Store original data
+// Store original data and attach event listeners
 document.addEventListener('DOMContentLoaded', function() {
+    // Store original data
     originalData.title = document.getElementById('tutorial-title').textContent;
     originalData.description = document.getElementById('tutorial-description').value;
     originalData.steps = {};
-    
+
     document.querySelectorAll('.step-description').forEach(desc => {
         const stepId = desc.closest('.tutorial-step').dataset.stepId;
         originalData.steps[stepId] = desc.textContent;
     });
-    
+
     // Initialize animated click indicators
     initializeClickAnimations();
+
+    // Attach change tracking event listeners - MUST be inside DOMContentLoaded
+    document.getElementById('tutorial-title').addEventListener('input', markChanged);
+    document.getElementById('tutorial-description').addEventListener('input', markChanged);
+
+    document.querySelectorAll('.step-description').forEach(desc => {
+        desc.addEventListener('input', function() {
+            markChanged();
+            this.classList.add('changed');
+        });
+    });
 });
 
 // Initialize animated click indicators with intersection observer
@@ -455,17 +467,6 @@ function initializeClickAnimations() {
         observer.observe(step);
     });
 }
-
-// Track changes
-document.getElementById('tutorial-title').addEventListener('input', markChanged);
-document.getElementById('tutorial-description').addEventListener('input', markChanged);
-
-document.querySelectorAll('.step-description').forEach(desc => {
-    desc.addEventListener('input', function() {
-        markChanged();
-        this.classList.add('changed');
-    });
-});
 
 function markChanged() {
     hasChanges = true;

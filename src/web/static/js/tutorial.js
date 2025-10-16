@@ -3,21 +3,55 @@
 
 let hasChanges = false;
 let originalData = {};
+let loadingProgress = 0;
+let totalSteps = 0;
+
+// Loading overlay management
+function updateLoadingProgress(progress, status) {
+    const progressBar = document.getElementById('loading-progress');
+    const statusText = document.getElementById('loading-status');
+    
+    if (progressBar) {
+        progressBar.style.width = `${progress}%`;
+    }
+    if (statusText) {
+        statusText.textContent = status;
+    }
+}
+
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+        overlay.style.opacity = '0';
+        setTimeout(() => {
+            overlay.style.display = 'none';
+        }, 300);
+    }
+}
 
 // Store original data and attach event listeners
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize loading progress
+    updateLoadingProgress(10, 'Loading tutorial data...');
+    
     // Store original data
     originalData.title = document.getElementById('tutorial-title').textContent;
     originalData.description = document.getElementById('tutorial-description').value;
     originalData.steps = {};
+
+    updateLoadingProgress(30, 'Processing steps...');
 
     document.querySelectorAll('.step-description').forEach(desc => {
         const stepId = desc.closest('.tutorial-step').dataset.stepId;
         originalData.steps[stepId] = desc.textContent;
     });
 
+    updateLoadingProgress(50, 'Initializing animations...');
+
     // Initialize animated click indicators
     initializeClickAnimations();
+
+    updateLoadingProgress(70, 'Setting up event listeners...');
 
     // Attach change tracking event listeners - MUST be inside DOMContentLoaded
     document.getElementById('tutorial-title').addEventListener('input', markChanged);
@@ -29,6 +63,54 @@ document.addEventListener('DOMContentLoaded', function() {
             this.classList.add('changed');
         });
     });
+
+    updateLoadingProgress(90, 'Loading images...');
+
+    // Wait for images to load, then hide overlay
+    const images = document.querySelectorAll('.step-screenshot');
+    totalSteps = images.length;
+    
+    if (totalSteps === 0) {
+        // No images to load, hide overlay immediately
+        updateLoadingProgress(100, 'Ready!');
+        setTimeout(hideLoadingOverlay, 500);
+    } else {
+        let loadedImages = 0;
+        
+        images.forEach((img, index) => {
+            if (img.complete) {
+                loadedImages++;
+            } else {
+                img.addEventListener('load', function() {
+                    loadedImages++;
+                    const progress = 90 + (loadedImages / totalSteps) * 10;
+                    updateLoadingProgress(progress, `Loading images... (${loadedImages}/${totalSteps})`);
+                    
+                    if (loadedImages === totalSteps) {
+                        updateLoadingProgress(100, 'Ready!');
+                        setTimeout(hideLoadingOverlay, 500);
+                    }
+                });
+                
+                img.addEventListener('error', function() {
+                    loadedImages++;
+                    const progress = 90 + (loadedImages / totalSteps) * 10;
+                    updateLoadingProgress(progress, `Loading images... (${loadedImages}/${totalSteps})`);
+                    
+                    if (loadedImages === totalSteps) {
+                        updateLoadingProgress(100, 'Ready!');
+                        setTimeout(hideLoadingOverlay, 500);
+                    }
+                });
+            }
+        });
+        
+        // Check if all images are already loaded
+        if (loadedImages === totalSteps) {
+            updateLoadingProgress(100, 'Ready!');
+            setTimeout(hideLoadingOverlay, 500);
+        }
+    }
 });
 
 // Initialize animated click indicators with intersection observer
